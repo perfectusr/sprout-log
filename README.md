@@ -9,7 +9,7 @@ Pick your model and what you sowed in each pot, and Sprout Log shows:
 - **The right light mode and nutrient dose** for your model and what you're growing
 - **A grow log** for notes, heights, refills and harvests, plus a history of past plantings
 
-Everything is saved in the visitor's own browser. There are no accounts, no database and no tracking.
+Everything is saved in the visitor's own browser. There are no accounts and no database. The site counts anonymous visits with Vercel Web Analytics, which doesn't use cookies.
 
 ## Where the growing info comes from
 
