@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sprout Log — a grow tracker for Auk indoor gardens</title>
+<meta name="description" content="Track what's growing in your Auk indoor garden: sprouting, flowering and harvest windows for each seed, daily care tasks and a grow log. Unofficial and free.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="brand">🌱 Sprout Log</span>
+    <span class="topactions">
+      <span class="units" role="group" aria-label="Units"><button data-units="F">°F / in</button><button data-units="C">°C / cm</button></span>
+      <button class="btn sm" data-edit="1">Edit garden</button>
+    </span>
+  </header>
+
+  <section id="setup" class="setup hidden" aria-labelledby="setuph">
+    <h1 id="setuph">Set up your garden</h1>
+    <p class="muted">Pick your model, then what you sowed in each pot. Timings come from Auk's growing guides where they exist.</p>
+    <fieldset class="devices" id="devices"><legend class="sr">Model</legend></fieldset>
+    <div id="potcountwrap"></div>
+    <div id="potrows"></div>
+    <div class="row">
+      <button class="btn solid" id="setupSave">Save garden</button>
+      <button class="btn ghost" id="setupCancel">Cancel</button>
+      <label class="btn ghost" for="importFile" style="cursor:pointer">Import a backup instead</label>
+    </div>
+    <p class="small muted">Changing a pot's seed or sow date moves the old planting into your history.</p>
+  </section>
+
+  <main id="app" class="hidden">
+    <section class="hero" aria-label="Your garden today">
+      <svg class="unit" id="unit" viewBox="0 0 560 338" role="img" aria-label="Your garden, with each pot drawn at its logged stage"></svg>
+      <div>
+        <div class="daynum" id="daynum"></div>
+        <div class="next" id="next"></div>
+      </div>
+    </section>
+
+    <section class="pots" id="pots" aria-label="Pots"></section>
+
+    <section class="two">
+      <div>
+        <h2>Today</h2>
+        <ul class="tasks" id="tasks"></ul>
+      </div>
+      <aside class="device" id="device" aria-label="Device settings"></aside>
+    </section>
+
+    <h2>Coming up</h2>
+    <ol class="sched" id="sched"></ol>
+
+    <h2>Grow log</h2>
+    <form class="logform" id="logform">
+      <label>Date<input type="date" name="date" required></label>
+      <label>Pot<select name="pot" id="logpot"></select></label>
+      <label>What happened
+        <select name="type">
+          <option value="note">Note</option>
+          <option value="measure">Measured height</option>
+          <option value="pollinate">Pollinated</option>
+          <option value="prune">Pruned / trimmed</option>
+          <option value="harvest">Harvested</option>
+          <option value="refill">Full refill</option>
+          <option value="topup">Top-up</option>
+        </select>
+      </label>
+      <label><span id="heightlabel">Height</span><input type="number" name="height" min="0" step="0.5" inputmode="decimal" placeholder="optional"></label>
+      <label class="full">Note<textarea name="text" placeholder="Leaf color, how many sprouts, anything worth remembering"></textarea></label>
+      <div class="actions"><span class="small muted">Everything saves in this browser.</span><button class="btn solid" type="submit">Add to log</button></div>
+    </form>
+    <ul class="entries" id="entries"></ul>
+
+    <section id="historysec" class="hidden">
+      <h2>Past plantings</h2>
+      <ul class="history" id="history"></ul>
+    </section>
+  </main>
+
+  <footer>
+    <div class="row">
+      <button class="btn ghost" id="exportBtn">Export backup</button>
+      <label class="btn ghost" for="importFile" style="cursor:pointer">Import backup</label>
+      <input type="file" id="importFile" accept="application/json,.json" class="hidden">
+    </div>
+    <p class="small muted">Your data stays in this browser — nothing is sent anywhere. Export a backup to move it to another device.</p>
+    <p class="small muted">Sprout Log is an independent, unofficial project. It isn't made, endorsed or supported by Auk. “Auk” and its product names belong to their owner and are used here only to describe compatibility. Growing timings are drawn from <a href="https://support.auk.com" target="_blank" rel="noopener">Auk's public help centre</a> where available and general guidance elsewhere, and were last checked <span id="libdate"></span>. Your plants may vary with temperature and light.</p>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="data/library.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
