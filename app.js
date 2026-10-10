@@ -413,12 +413,12 @@ function renderUnits() {
 }
 /* ---------------- views: home (intro), setup, garden ---------------- */
 let view = "home";
-const PATHS = { home: "/", setup: "/setup", garden: "/garden" };
+const PATHS = { home: "/", setup: "/setup", garden: "/garden", welcome: "/welcome" };
 function viewFromPath() {
   if (!/^https?:$/.test(location.protocol)) return state.device ? "garden" : "home";
   const p = location.pathname.replace(/\/+$/, "") || "/";
   if (p === "/setup") return "setup";
-  if (p === "/garden") return state.device ? "garden" : "home";
+  if (p === "/garden" || p === "/welcome") return state.device ? "garden" : "home";
   return state.device ? "garden" : "home";
 }
 function go(v, replace) {
@@ -437,11 +437,12 @@ window.addEventListener("popstate", () => {
   render();
 });
 function render() {
-  if (view === "garden" && !state.device) view = "home";
+  if ((view === "garden" || view === "welcome") && !state.device) view = "home";
+  const garden = view === "garden" || view === "welcome";
   $("intro").classList.toggle("hidden", view !== "home");
   $("setup").classList.toggle("hidden", view !== "setup");
-  $("app").classList.toggle("hidden", view !== "garden");
-  $("editBtn").classList.toggle("hidden", view !== "garden");
+  $("app").classList.toggle("hidden", !garden);
+  $("editBtn").classList.toggle("hidden", !garden);
   $("unitsToggle").classList.toggle("hidden", view === "home");
   renderUnits();
   if (view === "home") { drawUnit("introUnit", samplePots(), 4); return; }
@@ -484,7 +485,7 @@ function renderSetup() {
   }).join("");
 }
 function saveSetup() {
-  const t = today();
+  const t = today(), first = !state.device;
   const next = [];
   for (let i = 0; i < Math.max(draft.potCount, state.pots.length); i++) {
     const old = state.pots[i], d = i < draft.potCount ? draft.pots[i] : { seed: "" };
@@ -495,7 +496,9 @@ function saveSetup() {
   }
   state.device = draft.device; state.potCount = draft.potCount; state.pots = next;
   save();
-  go("garden");
+  // A brand-new garden gets its own address (/welcome) so Vercel Analytics can count gardens created.
+  go(first ? "welcome" : "garden");
+  if (first) toast("Your garden is set up. Bookmark this page to check in.");
 }
 
 /* ---------------- events ---------------- */
