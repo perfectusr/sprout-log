@@ -28,12 +28,36 @@
 <body>
 <div class="wrap">
   <header class="top">
-    <span class="brand">🌱 Sprout Log</span>
+    <button class="brand" data-home="1" aria-label="Sprout Log home">🌱 Sprout Log</button>
     <span class="topactions">
-      <span class="units" role="group" aria-label="Units"><button data-units="F">°F / in</button><button data-units="C">°C / cm</button></span>
-      <button class="btn sm" data-edit="1">Edit garden</button>
+      <span class="units" id="unitsToggle" role="group" aria-label="Units"><button data-units="F">°F / in</button><button data-units="C">°C / cm</button></span>
+      <button class="btn sm hidden" id="editBtn" data-edit="1">Edit garden</button>
     </span>
   </header>
+
+  <section id="intro" class="intro hidden" aria-labelledby="introh">
+    <div class="intro-hero">
+      <div>
+        <h1 id="introh">Know what to expect, and when.</h1>
+        <p class="lede">A free grow tracker for Auk indoor gardens. Tell it what you planted and it shows when to expect sprouts, flowers and harvest for every pot, plus what to do today.</p>
+        <div class="row cta">
+          <button class="btn solid lg" data-start="1">Set up my garden</button>
+          <label class="btn ghost" for="importFile" style="cursor:pointer">I have a backup</label>
+        </div>
+        <p class="small muted">Works with Auk Mini 2, Auk Mini 1 and Auk 1 · Free · No account needed</p>
+      </div>
+      <svg class="unit" id="introUnit" viewBox="0 0 560 338" role="img" aria-label="An example garden: basil, a ripening tomato, a fruiting chili and pak choi under a grow light"></svg>
+    </div>
+    <ol class="steps">
+      <li><span class="stepn">1</span><h3>Tell it what you planted</h3><p>Pick your Auk model, then the seed in each pot and the day you sowed it. Every seed Auk sells is included, plus options for other brands.</p></li>
+      <li><span class="stepn">2</span><h3>See your timeline</h3><p>Sprouting, flowering and harvest windows for each pot. Dates come from Auk's own growing guides where they exist, and each one is labeled so you know where it came from.</p></li>
+      <li><span class="stepn">3</span><h3>Check in each day</h3><p>A short to-do list, the right light mode and nutrient dose for your model, and a log for notes, heights and harvests.</p></li>
+    </ol>
+    <div class="row cta2">
+      <button class="btn solid lg" data-start="1">Set up my garden</button>
+      <span class="small muted">Takes about a minute.</span>
+    </div>
+  </section>
 
   <section id="setup" class="setup hidden" aria-labelledby="setuph">
     <h1 id="setuph">Set up your garden</h1>

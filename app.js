@@ -179,8 +179,8 @@ function drawPlant(p, cx, soilY, scale) {
   }
   return wrap(g);
 }
-function drawUnit() {
-  const n = Math.max(1, state.potCount), soilY = 248;
+function drawUnit(target, pots, potCount) {
+  const n = Math.max(1, potCount), soilY = 248;
   const span = 400, spacing = span / n, rx = Math.min(62, spacing * 0.4);
   const scale = Math.max(0.6, Math.min(1, spacing / 150));
   let s = `<defs><linearGradient id="beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--glow)" stop-opacity=".5"/><stop offset="1" stop-color="var(--glow)" stop-opacity="0"/></linearGradient></defs>`;
@@ -189,17 +189,26 @@ function drawUnit() {
   s += `<rect x="36" y="36" width="488" height="22" rx="11" fill="var(--ink)"/><rect x="70" y="54" width="420" height="4" rx="2" fill="var(--glow)"/>`;
   const centers = [];
   for (let i = 0; i < n; i++) centers.push(80 + spacing * (i + .5));
-  centers.forEach((cx, i) => { const p = state.pots[i]; if (p) s += drawPlant(Object.assign({ idx: i }, p), cx, soilY, scale); });
+  centers.forEach((cx, i) => { const p = pots[i]; if (p) s += drawPlant(Object.assign({ idx: i }, p), cx, soilY, scale); });
   s += `<rect x="24" y="252" width="512" height="44" rx="14" fill="var(--wood)"/>`;
   centers.forEach((cx, i) => {
-    const p = state.pots[i];
+    const p = pots[i];
     s += `<ellipse cx="${cx}" cy="253" rx="${rx}" ry="11" fill="${p ? "var(--soil)" : "var(--soil-empty)"}"/>`;
     const label = p ? seedOf(p).name.split(" (")[0] : "Empty";
     const short = n > 3 && label.length > 20 ? label.slice(0, 19) + "…" : label;
     const ly = n > 3 ? 314 + (i % 2) * 17 : 318;
     s += `<text x="${cx}" y="${ly}" text-anchor="middle" font-size="${n > 3 ? 12 : 14}" font-weight="700" fill="${p ? "var(--ink)" : "var(--ink-2)"}" font-family="inherit">${esc(short)}</text>`;
   });
-  document.getElementById("unit").innerHTML = s;
+  document.getElementById(target).innerHTML = s;
+}
+function samplePots() {
+  const d = k => addDays(today(), -k);
+  return [
+    { id: "s1", seed: "basil", sown: d(40), ms: { sprouted: d(36), harvest: d(5) } },
+    { id: "s2", seed: "kit-tomato", sown: d(80), ms: { sprouted: d(74), thinned: d(60), flowering: d(40), fruit: d(30), ripe: d(2) } },
+    { id: "s3", seed: "kit-chili", sown: d(60), ms: { sprouted: d(50), thinned: d(35), flowering: d(10), fruit: d(3) } },
+    { id: "s4", seed: "pak-choi", sown: d(20), ms: { sprouted: d(14) } }
+  ];
 }
 
 /* ---------------- device guidance ---------------- */
@@ -402,11 +411,42 @@ function renderHistory() {
 function renderUnits() {
   document.querySelectorAll("[data-units]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.units === state.units)));
 }
+/* ---------------- views: home (intro), setup, garden ---------------- */
+let view = "home";
+const PATHS = { home: "/", setup: "/setup", garden: "/garden" };
+function viewFromPath() {
+  if (!/^https?:$/.test(location.protocol)) return state.device ? "garden" : "home";
+  const p = location.pathname.replace(/\/+$/, "") || "/";
+  if (p === "/setup") return "setup";
+  if (p === "/garden") return state.device ? "garden" : "home";
+  return state.device ? "garden" : "home";
+}
+function go(v, replace) {
+  view = v;
+  const path = PATHS[v];
+  if (/^https?:$/.test(location.protocol) && location.pathname !== path) {
+    try { history[replace ? "replaceState" : "pushState"]({ v }, "", path + location.search); } catch (e) { /* ignore */ }
+  }
+  render();
+  window.scrollTo({ top: 0 });
+}
+window.addEventListener("popstate", () => {
+  view = viewFromPath();
+  if (view === "setup" && !draft) initDraft();
+  if (view === "setup") renderSetup();
+  render();
+});
 function render() {
-  const ready = !!state.device;
-  $("app").classList.toggle("hidden", !ready);
-  if (!ready) { openSetup(); return; }
-  drawUnit(); renderHero(); renderPots(); renderTasks(); renderDevice(); renderUpcoming(); renderLog(); renderHistory(); renderUnits();
+  if (view === "garden" && !state.device) view = "home";
+  $("intro").classList.toggle("hidden", view !== "home");
+  $("setup").classList.toggle("hidden", view !== "setup");
+  $("app").classList.toggle("hidden", view !== "garden");
+  $("editBtn").classList.toggle("hidden", view !== "garden");
+  $("unitsToggle").classList.toggle("hidden", view === "home");
+  renderUnits();
+  if (view === "home") { drawUnit("introUnit", samplePots(), 4); return; }
+  if (view === "setup") return;
+  drawUnit("unit", state.pots, state.potCount); renderHero(); renderPots(); renderTasks(); renderDevice(); renderUpcoming(); renderLog(); renderHistory(); renderUnits();
 }
 
 /* ---------------- setup ---------------- */
@@ -417,16 +457,17 @@ function seedOptions(sel) {
     `<optgroup label="${esc(L.groups[g].label)}">${groups[g].map(s => `<option value="${s.id}" ${s.id === sel ? "selected" : ""}>${esc(s.name)}${s.variety ? " (" + esc(s.variety) + ")" : ""}</option>`).join("")}</optgroup>`).join("");
 }
 let draft = null;
-function openSetup() {
+function initDraft() {
   draft = { device: state.device || "mini2", potCount: state.potCount || 4,
     pots: Array.from({ length: 6 }, (_, i) => state.pots[i] ? { seed: state.pots[i].seed, sown: state.pots[i].sown } : { seed: "", sown: today() }) };
-  $("setup").classList.remove("hidden");
-  $("setupCancel").classList.toggle("hidden", !state.device);
-  renderUnits();
+}
+function openSetup() {
+  initDraft();
   renderSetup();
-  $("setup").scrollIntoView({ block: "start" });
+  go("setup");
 }
 function renderSetup() {
+  $("setupCancel").textContent = state.device ? "Cancel" : "Back";
   const dev = L.devices[draft.device];
   if (!dev.potOptions.some(o => o.count === draft.potCount)) draft.potCount = dev.potOptions[0].count;
   $("devices").innerHTML = Object.entries(L.devices).map(([id, d]) =>
@@ -454,9 +495,7 @@ function saveSetup() {
   }
   state.device = draft.device; state.potCount = draft.potCount; state.pots = next;
   save();
-  $("setup").classList.add("hidden");
-  render();
-  window.scrollTo({ top: 0 });
+  go("garden");
 }
 
 /* ---------------- events ---------------- */
@@ -474,10 +513,11 @@ document.addEventListener("click", ev => {
   else if (b.dataset.clear) { const [id, k] = b.dataset.clear.split(":"); delete potById(id).ms[k]; save(); render(); }
   else if (b.dataset.del) { state.log = state.log.filter(e => e.id !== b.dataset.del); save(); render(); }
   else if (b.dataset.quick) addLog({ date: today(), pot: "all", type: b.dataset.quick, text: doseText(b.dataset.quick), height: null });
-  else if (b.dataset.edit) openSetup();
+  else if (b.dataset.edit || b.dataset.start) openSetup();
+  else if (b.dataset.home) go(state.device ? "garden" : "home");
   else if (b.dataset.units) { state.units = b.dataset.units; save(); if (state.device) render(); else renderUnits(); }
   else if (b.id === "setupSave") saveSetup();
-  else if (b.id === "setupCancel") { $("setup").classList.add("hidden"); }
+  else if (b.id === "setupCancel") go(state.device ? "garden" : "home");
   else if (b.id === "exportBtn") exportData();
 });
 document.addEventListener("change", ev => {
@@ -514,13 +554,15 @@ function exportData() {
 }
 $("importFile").addEventListener("change", async ev => {
   const f = ev.target.files[0]; if (!f) return;
-  try { state = normalize(JSON.parse(await f.text())); save(); $("setup").classList.add("hidden"); render(); toast("Backup imported."); }
+  try { state = normalize(JSON.parse(await f.text())); save(); go("garden"); toast("Backup imported."); }
   catch (e) { toast("That file isn't a Sprout Log backup."); }
   ev.target.value = "";
 });
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 3500); }
 
 $("libdate").textContent = fmt(L.checked, { month: "long", day: "numeric", year: "numeric" });
-render();
+view = viewFromPath();
+if (view === "setup") { initDraft(); renderSetup(); }
+go(view, true);
 setInterval(() => { if (document.visibilityState === "visible" && state.device) render(); }, 60 * 60 * 1000);
 })();

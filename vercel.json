@@ -1,0 +1,7 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/setup", "destination": "/index.html" },
+    { "source": "/garden", "destination": "/index.html" }
+  ]
+}
