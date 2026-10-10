@@ -20,7 +20,7 @@ const weekKey = () => Math.floor(parse(today()).getTime() / (7 * DAY));
 
 /* ---------------- state ---------------- */
 function blank() {
-  return { v: 2, device: null, potCount: 0, pots: [], log: [], history: [], checks: {},
+  return { v: 2, device: null, potCount: 0, pots: [], log: [], history: [], checks: {}, caughtUp: {},
     units: (navigator.language || "").toLowerCase() === "en-us" ? "F" : "C", updated: 0 };
 }
 function migrateV1(o) {
@@ -411,6 +411,50 @@ function renderHistory() {
 function renderUnits() {
   document.querySelectorAll("[data-units]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.units === state.units)));
 }
+/* ---------------- catch-up for gardens that were already growing ---------------- */
+// Pots sown a few days ago with nothing logged get a one-time checklist of the stages that could have happened by now.
+function catchupPots() {
+  const done = state.caughtUp || {};
+  return active().filter(p => dayOf(p) >= 4 && !done[p.id] && !Object.keys(p.ms).length).map(p => {
+    const s = seedOf(p), d = dayOf(p);
+    const stages = milestones(s).filter(([k]) => windowOf(s, k).r[0] <= d).map(([k, label]) => {
+      const r = windowOf(s, k).r, mid = Math.round((r[0] + r[1]) / 2);
+      const est = addDays(p.sown, Math.min(mid, d));
+      return { k, label, r, est };
+    });
+    return { p, s, d, stages };
+  }).filter(x => x.stages.length);
+}
+let showCatchupDates = false;
+function renderCatchup() {
+  const box = $("catchup"), list = catchupPots();
+  if (!list.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  box.classList.remove("hidden");
+  box.innerHTML = `<h2 id="catchuph">Catch up your garden</h2>
+    <p class="muted">Some pots were sown a while ago. Tick anything that's already happened and Sprout Log will fill in estimated dates${showCatchupDates ? ". Adjust any date you remember exactly." : "."}</p>
+    <div class="cu-pots">${list.map(({ p, s, d, stages }) => `
+      <div class="cu-pot"><p class="cu-head"><strong>${esc(s.name)}</strong> <span class="muted small">${potName(p)} · sown ${d} days ago</span></p>
+      ${stages.map((st, i) => `<label class="cu-row"><input type="checkbox" data-cu="${p.id}" data-k="${st.k}" data-i="${i}">
+        <span>${esc(st.label)} <span class="muted small">usually day ${st.r[0]}–${st.r[1]}</span></span>
+        <input type="date" class="cu-date ${showCatchupDates ? "" : "hidden"}" data-cud="${p.id}:${st.k}" value="${st.est}" min="${p.sown}" max="${today()}" aria-label="${esc(st.label)} date"></label>`).join("")}
+      </div>`).join("")}</div>
+    <div class="row"><button class="btn solid" data-cusave="1">Save</button><button class="btn ghost" data-cudates="1">${showCatchupDates ? "Hide dates" : "Change dates"}</button><button class="btn ghost" data-cuskip="1">Not now</button></div>`;
+}
+function saveCatchup(skip) {
+  state.caughtUp = state.caughtUp || {};
+  catchupPots().forEach(({ p }) => {
+    const pot = potById(p.id);
+    if (!skip) document.querySelectorAll(`input[data-cu="${p.id}"]:checked`).forEach(cb => {
+      const d = document.querySelector(`input[data-cud="${p.id}:${cb.dataset.k}"]`);
+      pot.ms[cb.dataset.k] = (d && d.value) || today();
+    });
+    state.caughtUp[p.id] = 1;
+  });
+  showCatchupDates = false;
+  save(); render();
+  if (!skip) toast("Garden caught up.");
+}
+
 /* ---------------- views: home (intro), setup, garden ---------------- */
 let view = "home";
 const PATHS = { home: "/", setup: "/setup", garden: "/garden", welcome: "/welcome" };
@@ -447,7 +491,7 @@ function render() {
   renderUnits();
   if (view === "home") { drawUnit("introUnit", samplePots(), 4); return; }
   if (view === "setup") return;
-  drawUnit("unit", state.pots, state.potCount); renderHero(); renderPots(); renderTasks(); renderDevice(); renderUpcoming(); renderLog(); renderHistory(); renderUnits();
+  drawUnit("unit", state.pots, state.potCount); renderCatchup(); renderHero(); renderPots(); renderTasks(); renderDevice(); renderUpcoming(); renderLog(); renderHistory(); renderUnits();
 }
 
 /* ---------------- setup ---------------- */
@@ -477,7 +521,7 @@ function renderSetup() {
     ? `<label>Pot setup <select id="potcount">${dev.potOptions.map(o => `<option value="${o.count}" ${o.count === draft.potCount ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select></label>` : `<p class="small muted">${esc(dev.potOptions[0].label)}</p>`;
   $("potrows").innerHTML = Array.from({ length: draft.potCount }, (_, i) => {
     const p = draft.pots[i], s = SEEDS[p.seed];
-    const hint = s ? `${s.sow === "surface" ? "Leave seeds on the surface. " : ""}${s.seeds}.` : "";
+    const hint = s ? `${s.sow === "surface" ? "Leave seeds on the surface. " : ""}${s.seeds}. Planted earlier? Change the sow date.` : "";
     return `<div class="potrow"><span class="potnum">Pot ${i + 1}</span>
       <label class="grow">Seed<select data-i="${i}" data-f="seed">${seedOptions(p.seed)}</select></label>
       <label>Sown on<input type="date" data-i="${i}" data-f="sown" value="${p.sown}" ${p.seed ? "" : "disabled"}></label>
@@ -518,6 +562,15 @@ document.addEventListener("click", ev => {
   else if (b.dataset.quick) addLog({ date: today(), pot: "all", type: b.dataset.quick, text: doseText(b.dataset.quick), height: null });
   else if (b.dataset.edit || b.dataset.start) openSetup();
   else if (b.dataset.home) go(state.device ? "garden" : "home");
+  else if (b.dataset.cusave) saveCatchup(false);
+  else if (b.dataset.cuskip) saveCatchup(true);
+  else if (b.dataset.cudates) {
+    const ticked = [...document.querySelectorAll("input[data-cu]:checked")].map(c => c.dataset.cu + ":" + c.dataset.k);
+    const dates = Object.fromEntries([...document.querySelectorAll("input[data-cud]")].map(i => [i.dataset.cud, i.value]));
+    showCatchupDates = !showCatchupDates; renderCatchup();
+    ticked.forEach(t => { const [id, k] = t.split(":"); const c = document.querySelector(`input[data-cu="${id}"][data-k="${k}"]`); if (c) c.checked = true; });
+    Object.entries(dates).forEach(([key, v]) => { const i = document.querySelector(`input[data-cud="${key}"]`); if (i) i.value = v; });
+  }
   else if (b.dataset.units) { state.units = b.dataset.units; save(); if (state.device) render(); else renderUnits(); }
   else if (b.id === "setupSave") saveSetup();
   else if (b.id === "setupCancel") go(state.device ? "garden" : "home");
@@ -529,6 +582,10 @@ document.addEventListener("change", ev => {
   else if (t.id === "potcount") { draft.potCount = Number(t.value); renderSetup(); }
   else if (t.dataset.f) { draft.pots[+t.dataset.i][t.dataset.f] = t.value; if (t.dataset.f === "seed") renderSetup(); }
   else if (t.dataset.k && t.dataset.pot && t.type === "date" && t.value) { potById(t.dataset.pot).ms[t.dataset.k] = t.value; save(); render(); }
+  else if (t.dataset.cu) {
+    const boxes = [...document.querySelectorAll(`input[data-cu="${t.dataset.cu}"]`)], i = +t.dataset.i;
+    boxes.forEach(b => { const j = +b.dataset.i; if (t.checked && j < i) b.checked = true; if (!t.checked && j > i) b.checked = false; });
+  }
   else if (t.dataset.check !== undefined) {
     if (t.checked) { state.checks[t.dataset.check] = 1; if (t.dataset.task === "pollinate") state.log.push({ id: uid(), date: today(), pot: "all", type: "pollinate", text: "", height: null }); }
     else delete state.checks[t.dataset.check];
