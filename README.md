@@ -19,13 +19,13 @@ All seed and device data lives in [`data/library.js`](data/library.js). Every ti
 |---|---|
 | `auk` | Auk's own help-centre guide for that exact plant |
 | `auk-group` | Auk's guide for the plant's group (e.g. their chili guide for a specific chili) |
-| `general` | General growing guidance — Auk doesn't publish a figure for that plant |
+| `general` | General growing guidance; Auk doesn't publish a figure for that plant |
 
 The app shows these labels next to each expected date, and links to the Auk articles. Descriptions in the library are written in our own words; please keep it that way and link to Auk rather than copying their text.
 
 ### Adding or fixing a seed
 
-Add an entry to `seeds` in `data/library.js`. Timings are days after sowing; temperatures are °C (the app converts to °F). Copy a similar entry and adjust it — the comments at the top of the file explain each field.
+Add an entry to `seeds` in `data/library.js`. Timings are days after sowing; temperatures are °C (the app converts to °F). Copy a similar entry and adjust it. The comments at the top of the file explain each field.
 
 ### Monthly doc check
 
@@ -51,7 +51,7 @@ npx serve .
 
 ## Moving data from the original single-page tracker
 
-Sprout Log reads the original tracker's data automatically if it's in the same browser. Otherwise, use **Export backup** on the old page and **Import backup** here — older backups are converted on import.
+Sprout Log reads the original tracker's data automatically if it's in the same browser. Otherwise, use **Export backup** on the old page and **Import backup** here. Older backups are converted on import.
 
 ## Disclaimer
 

@@ -195,9 +195,9 @@ function drawUnit() {
     const p = state.pots[i];
     s += `<ellipse cx="${cx}" cy="253" rx="${rx}" ry="11" fill="${p ? "var(--soil)" : "var(--soil-empty)"}"/>`;
     const label = p ? seedOf(p).name.split(" (")[0] : "Empty";
-    const short = n > 4 && label.length > 16 ? label.slice(0, 15) + "…" : label;
-    const ly = n > 4 ? 314 + (i % 2) * 17 : 318;
-    s += `<text x="${cx}" y="${ly}" text-anchor="middle" font-size="${n > 4 ? 12 : 14}" font-weight="700" fill="${p ? "var(--ink)" : "var(--ink-2)"}" font-family="inherit">${esc(short)}</text>`;
+    const short = n > 3 && label.length > 20 ? label.slice(0, 19) + "…" : label;
+    const ly = n > 3 ? 314 + (i % 2) * 17 : 318;
+    s += `<text x="${cx}" y="${ly}" text-anchor="middle" font-size="${n > 3 ? 12 : 14}" font-weight="700" fill="${p ? "var(--ink)" : "var(--ink-2)"}" font-family="inherit">${esc(short)}</text>`;
   });
   document.getElementById("unit").innerHTML = s;
 }
@@ -211,12 +211,12 @@ function counts() {
 function guidance() {
   const d = state.device, dev = L.devices[d], c = counts(), out = { mode: "", notes: [], dose: null, src: dev.sources };
   const mixed = c.fr.length && c.leaf.length;
-  if (c.fr.length > 2) out.notes.push(`Auk recommends no more than two fruiting plants at once — you have ${c.fr.length}. They'll compete for light.`);
+  if (c.fr.length > 2) out.notes.push(`Auk recommends no more than two fruiting plants at once, and you have ${c.fr.length}. They'll compete for light.`);
   if (mixed) out.notes.push("Auk suggests growing fruiting plants separately from herbs and salads. If you mix them, keep it to one fruiting plant so the others aren't shaded.");
   if (d === "mini2") {
     if (!c.a.length) out.mode = "Herbs & Salads mode (16 h on, 8 h off)";
     else if (!c.fr.length) out.mode = "Herbs & Salads mode (16 h on, 8 h off)";
-    else if (!mixed) out.mode = "Fruits & Veggies mode (20 h on, 4 h off) — tap the mode button to switch";
+    else if (!mixed) out.mode = "Fruits & Veggies mode (20 h on, 4 h off). Tap the mode button to switch";
     else out.mode = "Your call: Herbs & Salads favours the herbs; Fruits & Veggies (after about 5 weeks) favours the fruit, but herbs may flower sooner";
     if (state.potCount === 4 && c.fr.length) out.notes.push("Growing fruit in the standard small pots? Auk suggests leaving two pots empty.");
     const bloom = c.flowering;
@@ -224,14 +224,14 @@ function guidance() {
       note: c.fr.length ? (bloom ? "Flowering has started, so Bloom Booster goes in with every refill." : "Grow and Flavour for now. Bloom Booster joins when the first flower appears.") : "Grow and Flavour with every refill." };
   } else if (d === "mini1") {
     if (!c.fr.length) out.mode = "White light (the default, 17.5 h on)";
-    else out.mode = c.fruitWeeks5 ? "Bloom light — tap the light button 3× (13.5 h on); it blinks red to confirm" : "White light for now; switch to bloom light (tap 3×) at about 5 weeks";
+    else out.mode = c.fruitWeeks5 ? "Bloom light: tap the light button 3× (13.5 h on); it blinks red to confirm" : "White light for now; switch to bloom light (tap 3×) at about 5 weeks";
     const fruitPhase = c.fr.length && c.fruitWeeks5 && !(mixed && false);
     out.dose = { head: ["Green (Grow)", "Red (Flavour)"], rows: fruitPhase ? [["Full refill", 6, 6], ["Top-up, per litre", 2, 2]] : [["Full refill", 6, 3], ["Top-up, per litre", 2, 1]], off: [],
       note: fruitPhase ? "After 5 weeks with fruiting plants, red goes up to match green." : c.fr.length ? "Standard mix until about 5 weeks, then 6 + 6." : "Standard herb mix." };
   } else {
-    out.mode = !c.fr.length ? "Green plant chip — herbs & salads program (the default)" : !mixed ? "Red plant chip — tomato & chili program (hold it on the receiver at startup)" : "Pick the chip for whichever plants matter more: green for herbs, red for fruit";
+    out.mode = !c.fr.length ? "Green plant chip: herbs & salads program (the default)" : !mixed ? "Red plant chip: tomato & chili program (hold it on the receiver at startup)" : "Pick the chip for whichever plants matter more: green for herbs, red for fruit";
     out.dose = null;
-    out.notes.push("Nutrients dose automatically from the capsules. Check them whenever you refill water — the indicator isn't always accurate.");
+    out.notes.push("Nutrients dose automatically from the capsules. Check them whenever you refill water, since the indicator isn't always accurate.");
   }
   return out;
 }
@@ -256,7 +256,7 @@ function tasks() {
       if (m.flowering && !s.flowerOnly) add("pollinate", false, "Help pollinate the flowers",
         dev === "mini2" ? "Shake gently, blow on the flowers, or dab between them with a cotton swab. Auk suggests once a day while flowering." : "Shake gently or blow on the flowers. Auk suggests doing this a few times a week.", p, "day");
       if (s.draw === "tomato" && (m.flowering || d >= 42) && !m.harvest) add("stake-" + p.id, true, `Stake the ${s.name.toLowerCase()} if it's leaning`, "Tomatoes get top-heavy once fruit sets. A small stick and a soft tie is plenty.", null, "once");
-      if (s.prune && d >= 28) add("suckers-" + p.id, false, `Pinch out side shoots on ${potName(p).toLowerCase()}`, "Remove the shoots growing in the joints between leaves and stem — they take energy from fruit.", null, "week");
+      if (s.prune && d >= 28) add("suckers-" + p.id, false, `Pinch out side shoots on ${potName(p).toLowerCase()}`, "Remove the shoots growing in the joints between leaves and stem, since they take energy from fruit.", null, "week");
       if (d >= 28) add("toplight", false, "Trim anything touching the light", "If a top shoot reaches the light, cut just above a flower cluster and keep as many clusters as you can.", null, "week");
       if (m.fruit || d >= s.harvest[0] - 7) add("ripe", false, "Check for ripe fruit", `${nm}: ${s.harvestHow}`, p);
       if (dev === "mini1" && d >= 35 && !m.harvest) add("mini1-bloom", true, "Switch to bloom light and more red nutrient", "Tap the light button 3× (it blinks red). From now on use 6 pumps green + 6 red per full tank.", null, "once");
@@ -297,7 +297,7 @@ function renderHero() {
     if (!nm) return `<p><strong>${esc(s.name)}:</strong> every milestone logged.</p>`;
     const w = windowOf(s, nm[0]), a1 = addDays(p.sown, w.r[0]), b1 = addDays(p.sown, w.r[1]);
     const late = diff(b1, today()) > 0;
-    return `<p><strong>${esc(s.name)}:</strong> ${nm[1].toLowerCase()} expected ${fmt(a1)}–${fmt(b1)}${late ? ' <span class="muted">(window passed — log it if it happened)</span>' : ""}</p>`;
+    return `<p><strong>${esc(s.name)}:</strong> ${nm[1].toLowerCase()} expected ${fmt(a1)}–${fmt(b1)}${late ? ' <span class="muted">(window passed, so log it if it happened)</span>' : ""}</p>`;
   }).join("");
 }
 function renderPots() {
@@ -367,7 +367,7 @@ function renderUpcoming() {
   });
   ev.sort((x, y) => x.a.localeCompare(y.a));
   const t = today(), ol = $("sched");
-  if (!ev.length) { ol.innerHTML = `<li class="emptyrow muted">Nothing left to wait for — every milestone is logged.</li>`; return; }
+  if (!ev.length) { ol.innerHTML = `<li class="emptyrow muted">Nothing left to wait for. Every milestone is logged.</li>`; return; }
   ol.innerHTML = ev.slice(0, 10).map(e => {
     const now = e.a <= t && e.b >= t, late = e.b < t;
     return `<li class="${now ? "now" : ""} ${late ? "late" : ""}"><div class="d">${fmt(e.a)} – ${fmt(e.b)}<span>${now ? "happening now" : late ? "window passed" : `in ${diff(t, e.a)} days`}</span></div><div><div class="ev"><span class="tag" style="--c:${e.s.fruit || "var(--leaf-2)"}">${potName(e.p)}</span> ${esc(e.s.name)}: ${esc(e.label.toLowerCase())}</div><p class="src">${PROV[e.prov]}</p></div></li>`;
@@ -385,7 +385,7 @@ function renderLog() {
   ul.innerHTML = list.map(e => {
     const p = e.pot === "all" ? null : findPot(e.pot);
     const who = p ? esc(seedOf(p).name) : "All pots";
-    const extra = [e.height ? heightTxt(e.height) : "", esc(e.text)].filter(Boolean).join(" — ");
+    const extra = [e.height ? heightTxt(e.height) : "", esc(e.text)].filter(Boolean).join(" · ");
     return `<li><span class="date">${fmt(e.date, { weekday: "short", month: "short", day: "numeric" })}</span><div><span class="k">${TYPE[e.type] || "Note"}</span> <span class="small muted">· ${who}</span><div>${extra}</div></div><button class="btn ghost sm" data-del="${e.id}" aria-label="Delete entry">Delete</button></li>`;
   }).join("");
 }
@@ -414,7 +414,7 @@ function seedOptions(sel) {
   const groups = {};
   L.seeds.forEach(s => (groups[s.group] = groups[s.group] || []).push(s));
   return `<option value="">Empty</option>` + Object.keys(L.groups).filter(g => groups[g]).map(g =>
-    `<optgroup label="${esc(L.groups[g].label)}">${groups[g].map(s => `<option value="${s.id}" ${s.id === sel ? "selected" : ""}>${esc(s.name)}${s.variety ? " — " + esc(s.variety) : ""}</option>`).join("")}</optgroup>`).join("");
+    `<optgroup label="${esc(L.groups[g].label)}">${groups[g].map(s => `<option value="${s.id}" ${s.id === sel ? "selected" : ""}>${esc(s.name)}${s.variety ? " (" + esc(s.variety) + ")" : ""}</option>`).join("")}</optgroup>`).join("");
 }
 let draft = null;
 function openSetup() {
