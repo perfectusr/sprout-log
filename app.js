@@ -495,6 +495,106 @@ function render() {
 }
 
 /* ---------------- setup ---------------- */
+/* ---------------- searchable seed picker ---------------- */
+const SEED_ALIASES = {
+  arugula: "rocket", romaine: "lettuce", "crispy-salad": "lettuce", "pak-choi": "bok choy", "curly-kale": "kale",
+  "garden-cress": "cress", physalis: "cape gooseberry ground cherry", "sweet-pepper": "bell pepper capsicum",
+  cayennetta: "cayenne", "kit-tomato": "kit", "kit-chili": "kit", "other-herb": "other brand", "other-leafy": "other brand lettuce",
+  "other-tomato": "other brand", "other-pepper": "other brand"
+};
+const norm = s => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/chilli/g, "chili");
+// The kit variety label ("Chili & Tomato Kit") is left out so searching "chili" doesn't surface the kit tomato.
+const SEED_INDEX = L.seeds.map(s => ({ s, text: norm([s.name, s.id.startsWith("kit-") ? "" : s.variety || "", L.groups[s.group].label, SEED_ALIASES[s.id] || ""].join(" ")) }));
+const seedLabel = s => s ? s.name + (s.variety ? ` (${s.variety})` : "") : "";
+const seedMatches = q => { const t = norm(q).split(/\s+/).filter(Boolean); return SEED_INDEX.filter(x => t.every(w => x.text.includes(w))).map(x => x.s); };
+let combo = { i: -1, active: 0, items: [] };
+function openCombo(i, q) {
+  const list = $("combo-list-" + i), input = $("combo-" + i);
+  if (!list) return;
+  const items = q.trim() ? seedMatches(q) : L.seeds.slice();
+  const current = items.findIndex(s => s.id === draft.pots[i].seed);
+  combo = { i, items, active: q.trim() || current < 0 ? 0 : current };
+  if (!items.length) {
+    list.innerHTML = `<li class="combo-empty" role="presentation">No matches. For seeds from another brand, try “Other herb” or “Other tomato”.</li>`;
+  } else {
+    let html = "", group = null;
+    items.forEach((s, j) => {
+      if (s.group !== group) { group = s.group; html += `<li class="combo-group" role="presentation">${esc(L.groups[group].label)}</li>`; }
+      html += `<li role="option" id="combo-${i}-o${j}" class="combo-opt${j === combo.active ? " active" : ""}" data-pick="${i}:${s.id}" aria-selected="${s.id === draft.pots[i].seed}">${esc(s.name)}${s.variety ? ` <span class="muted">${esc(s.variety)}</span>` : ""}</li>`;
+    });
+    list.innerHTML = html;
+  }
+  list.classList.remove("hidden");
+  input.setAttribute("aria-expanded", "true");
+  setActive(combo.active);
+}
+function setActive(j) {
+  const list = $("combo-list-" + combo.i), input = $("combo-" + combo.i);
+  if (!list || !combo.items.length) { if (input) input.removeAttribute("aria-activedescendant"); return; }
+  combo.active = (j + combo.items.length) % combo.items.length;
+  list.querySelectorAll(".combo-opt").forEach((o, k) => o.classList.toggle("active", k === combo.active));
+  const el = $(`combo-${combo.i}-o${combo.active}`);
+  input.setAttribute("aria-activedescendant", el.id);
+  el.scrollIntoView({ block: "nearest" });
+}
+function closeCombo(i) {
+  const list = $("combo-list-" + i), input = $("combo-" + i);
+  if (list) list.classList.add("hidden");
+  if (input) { input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); }
+  if (combo.i === i) combo.i = -1;
+}
+function pickSeed(i, id) {
+  draft.pots[i].seed = id;
+  combo.i = -1;
+  renderSetup();
+  const next = id ? document.querySelector(`input[data-i="${i}"][data-f="sown"]`) : $("combo-" + i);
+  if (next) next.focus();
+}
+document.addEventListener("focusin", ev => {
+  const t = ev.target;
+  if (t.dataset && t.dataset.combo !== undefined) {
+    t.select(); openCombo(+t.dataset.combo, "");
+    // On phones, lift the field toward the top so the on-screen keyboard doesn't hide the results.
+    if (window.innerWidth < 820) setTimeout(() => t.scrollIntoView({ block: "start", behavior: "smooth" }), 250);
+  }
+});
+document.addEventListener("input", ev => {
+  const t = ev.target;
+  if (t.dataset && t.dataset.combo !== undefined) openCombo(+t.dataset.combo, t.value);
+});
+document.addEventListener("keydown", ev => {
+  const t = ev.target;
+  if (!t.dataset || t.dataset.combo === undefined) return;
+  const i = +t.dataset.combo, open = combo.i === i;
+  if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+    ev.preventDefault();
+    if (!open) openCombo(i, ""); else setActive(combo.active + (ev.key === "ArrowDown" ? 1 : -1));
+  } else if (ev.key === "Enter") {
+    ev.preventDefault();
+    if (open && combo.items[combo.active]) pickSeed(i, combo.items[combo.active].id);
+  } else if (ev.key === "Escape" && open) {
+    ev.preventDefault();
+    t.value = seedLabel(SEEDS[draft.pots[i].seed]);
+    closeCombo(i);
+  }
+});
+document.addEventListener("focusout", ev => {
+  const t = ev.target;
+  if (!t.dataset || t.dataset.combo === undefined) return;
+  const i = +t.dataset.combo;
+  setTimeout(() => {
+    const input = $("combo-" + i);
+    if (!input || document.activeElement === input) return;
+    closeCombo(i);
+    if (!input.value.trim() && draft.pots[i].seed) { draft.pots[i].seed = ""; renderSetup(); }
+    else input.value = seedLabel(SEEDS[draft.pots[i].seed]);
+  }, 120);
+});
+document.addEventListener("mousedown", ev => { if (ev.target.closest(".combo-list")) ev.preventDefault(); });
+document.addEventListener("click", ev => {
+  const o = ev.target.closest("[data-pick]");
+  if (o) { const [i, id] = o.dataset.pick.split(":"); pickSeed(+i, id); }
+});
 function seedOptions(sel) {
   const groups = {};
   L.seeds.forEach(s => (groups[s.group] = groups[s.group] || []).push(s));
@@ -523,7 +623,14 @@ function renderSetup() {
     const p = draft.pots[i], s = SEEDS[p.seed];
     const hint = s ? `${s.sow === "surface" ? "Leave seeds on the surface. " : ""}${s.seeds}. Planted earlier? Change the sow date.` : "";
     return `<div class="potrow"><span class="potnum">Pot ${i + 1}</span>
-      <label class="grow">Seed<select data-i="${i}" data-f="seed">${seedOptions(p.seed)}</select></label>
+      <div class="grow field"><label for="combo-${i}">Seed</label>
+        <div class="combo">
+          <input type="text" id="combo-${i}" data-combo="${i}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="combo-list-${i}"
+            autocomplete="off" spellcheck="false" enterkeyhint="done" placeholder="Type to search, e.g. basil or chili" value="${esc(seedLabel(s))}">
+          ${s ? `<button type="button" class="combo-clear" data-comboclear="${i}" aria-label="Clear pot ${i + 1}">×</button>` : ""}
+          <ul class="combo-list hidden" id="combo-list-${i}" role="listbox" aria-label="Seeds"></ul>
+        </div>
+      </div>
       <label>Sown on<input type="date" data-i="${i}" data-f="sown" value="${p.sown}" ${p.seed ? "" : "disabled"}></label>
       <p class="small muted hint">${esc(hint)}</p></div>`;
   }).join("");
@@ -560,6 +667,7 @@ document.addEventListener("click", ev => {
   else if (b.dataset.clear) { const [id, k] = b.dataset.clear.split(":"); delete potById(id).ms[k]; save(); render(); }
   else if (b.dataset.del) { state.log = state.log.filter(e => e.id !== b.dataset.del); save(); render(); }
   else if (b.dataset.quick) addLog({ date: today(), pot: "all", type: b.dataset.quick, text: doseText(b.dataset.quick), height: null });
+  else if (b.dataset.comboclear !== undefined) pickSeed(+b.dataset.comboclear, "");
   else if (b.dataset.edit || b.dataset.start) openSetup();
   else if (b.dataset.home) go(state.device ? "garden" : "home");
   else if (b.dataset.cusave) saveCatchup(false);
