@@ -20,7 +20,7 @@ const weekKey = () => Math.floor(parse(today()).getTime() / (7 * DAY));
 
 /* ---------------- state ---------------- */
 function blank() {
-  return { v: 2, device: null, potCount: 0, pots: [], log: [], history: [], checks: {}, caughtUp: {},
+  return { v: 2, device: null, potCount: 0, pots: [], log: [], history: [], checks: {}, caughtUp: {}, dismissed: {},
     units: (navigator.language || "").toLowerCase() === "en-us" ? "F" : "C", updated: 0 };
 }
 function migrateV1(o) {
@@ -455,6 +455,25 @@ function saveCatchup(skip) {
   if (!skip) toast("Garden caught up.");
 }
 
+/* ---------------- iPhone / iPad: protect gardens from Safari's 7-day storage limit ---------------- */
+// Safari clears a site's saved data after 7 days without a visit. Home Screen web apps are exempt,
+// but they keep their own separate storage, so the tip walks people through export, add, import.
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isStandalone = navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+function renderIosTip() {
+  const box = $("iosTip"), show = isIOS && !isStandalone && !(state.dismissed || {}).iosTip;
+  box.classList.toggle("hidden", !show);
+  if (!show) return;
+  box.innerHTML = `<h3 id="iostiph">On iPhone or iPad? Keep your garden safe</h3>
+    <p>Safari clears a website's saved data if you don't visit it for 7 days. Adding Sprout Log to your Home Screen avoids that. The Home Screen version keeps its own copy, so bring your garden with you:</p>
+    <ol>
+      <li><button class="btn sm" data-exporttip="1">Export a backup</button> <span class="muted">This saves a small file.</span></li>
+      <li>Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>.</li>
+      <li>Open Sprout Log from your Home Screen, tap <strong>I have a backup</strong>, and pick the file.</li>
+    </ol>
+    <div class="row"><button class="btn ghost sm" data-dismiss="iosTip">Got it</button></div>`;
+}
+
 /* ---------------- views: home (intro), setup, garden ---------------- */
 let view = "home";
 const PATHS = { home: "/", setup: "/setup", garden: "/garden", welcome: "/welcome" };
@@ -489,9 +508,9 @@ function render() {
   $("editBtn").classList.toggle("hidden", !garden);
   $("unitsToggle").classList.toggle("hidden", view === "home");
   renderUnits();
-  if (view === "home") { drawUnit("introUnit", samplePots(), 4); return; }
+  if (view === "home") { $("standaloneNote").classList.toggle("hidden", !isStandalone); drawUnit("introUnit", samplePots(), 4); return; }
   if (view === "setup") return;
-  drawUnit("unit", state.pots, state.potCount); renderCatchup(); renderHero(); renderPots(); renderTasks(); renderDevice(); renderUpcoming(); renderLog(); renderHistory(); renderUnits();
+  drawUnit("unit", state.pots, state.potCount); renderIosTip(); renderCatchup(); renderHero(); renderPots(); renderTasks(); renderDevice(); renderUpcoming(); renderLog(); renderHistory(); renderUnits();
 }
 
 /* ---------------- setup ---------------- */
@@ -649,7 +668,7 @@ function saveSetup() {
   save();
   // A brand-new garden gets its own address (/welcome) so Vercel Analytics can count gardens created.
   go(first ? "welcome" : "garden");
-  if (first) toast("Your garden is set up. Bookmark this page to check in.");
+  if (first) toast(isIOS && !isStandalone ? "Your garden is set up." : "Your garden is set up. Bookmark this page to check in.");
 }
 
 /* ---------------- events ---------------- */
@@ -670,6 +689,8 @@ document.addEventListener("click", ev => {
   else if (b.dataset.comboclear !== undefined) pickSeed(+b.dataset.comboclear, "");
   else if (b.dataset.edit || b.dataset.start) openSetup();
   else if (b.dataset.home) go(state.device ? "garden" : "home");
+  else if (b.dataset.exporttip) exportData();
+  else if (b.dataset.dismiss) { state.dismissed = state.dismissed || {}; state.dismissed[b.dataset.dismiss] = 1; save(); render(); }
   else if (b.dataset.cusave) saveCatchup(false);
   else if (b.dataset.cuskip) saveCatchup(true);
   else if (b.dataset.cudates) {
