@@ -95,6 +95,18 @@ textarea{width:100%;resize:vertical;min-height:70px}
 .potrow{display:grid;grid-template-columns:64px minmax(0,1fr) 180px;gap:6px 12px;align-items:end;padding:12px 0;border-top:1px solid var(--line)}
 .potrow label{display:flex;flex-direction:column;gap:4px;font-size:.875rem;color:var(--ink-2)}
 .potrow select{width:100%}
+.potrow .field{display:flex;flex-direction:column;gap:4px;font-size:.875rem;color:var(--ink-2)}
+.combo{position:relative}
+.combo input{width:100%;padding-right:36px;color:var(--ink);font-size:1rem}
+.combo-clear{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:30px;height:30px;border:0;border-radius:50%;background:none;color:var(--ink-2);font-size:1.2rem;line-height:1;cursor:pointer}
+.combo-clear:hover{background:var(--glow-soft);color:var(--ink)}
+.combo-list{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;max-height:320px;overflow:auto;margin:0;padding:6px 0;list-style:none;
+  background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.18)}
+.combo-group{padding:8px 12px 4px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-2)}
+.combo-opt{padding:8px 12px;cursor:pointer;font-size:.95rem}
+.combo-opt.active,.combo-opt:hover{background:var(--glow-soft)}
+.combo-opt[aria-selected="true"]{font-weight:700}
+.combo-empty{padding:10px 12px;font-size:.9rem;color:var(--ink-2)}
 .potnum{font-weight:800;padding-bottom:8px}
 .potrow .hint{grid-column:2/-1}
 
