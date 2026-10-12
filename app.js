@@ -3,7 +3,10 @@
 
 const L = window.SPROUT_LIBRARY;
 const SEEDS = Object.fromEntries(L.seeds.map(s => [s.id, s]));
-const KEY = "sprout-log-v2";
+// Storage. v3 holds several gardens. Older saves (v2, and the original single-page tracker) are read once,
+// copied into v3, and then left untouched in the browser as an automatic backup.
+const KEY = "sprout-log-v3";
+const V2_KEY = "sprout-log-v2";
 const LEGACY_KEY = "auk-grow-tracker-v1";
 const DAY = 86400000;
 
@@ -19,13 +22,21 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const weekKey = () => Math.floor(parse(today()).getTime() / (7 * DAY));
 
 /* ---------------- state ---------------- */
-function blank() {
-  return { v: 2, device: null, potCount: 0, pots: [], log: [], history: [], checks: {}, caughtUp: {}, dismissed: {},
-    units: (navigator.language || "").toLowerCase() === "en-us" ? "F" : "C", updated: 0 };
+// db = everything saved in this browser; state = the garden currently on screen.
+const defaultUnits = () => (navigator.language || "").toLowerCase() === "en-us" ? "F" : "C";
+function blankGarden() {
+  return { id: uid(), name: "", device: null, potCount: 0, pots: [], log: [], history: [], checks: {}, caughtUp: {} };
+}
+function blankDb() { return { v: 3, units: defaultUnits(), dismissed: {}, gardens: [], active: null, updated: 0 }; }
+const GARDEN_FIELDS = ["device", "potCount", "pots", "log", "history", "checks", "caughtUp"];
+function gardenFromV2(o) {
+  const g = blankGarden();
+  GARDEN_FIELDS.forEach(k => { if (o[k] !== undefined && o[k] !== null) g[k] = o[k]; });
+  return g;
 }
 function migrateV1(o) {
-  const s = blank();
-  s.device = "mini2"; s.potCount = 2; s.units = "F";
+  const s = blankGarden();
+  s.device = "mini2"; s.potCount = 2;
   const t = { id: uid(), seed: "kit-tomato", sown: o.sowDate, ms: (o.plants && o.plants.tomato && o.plants.tomato.milestones) || {} };
   const c = { id: uid(), seed: "kit-chili", sown: o.sowDate, ms: (o.plants && o.plants.chili && o.plants.chili.milestones) || {} };
   s.pots = [t, c];
@@ -33,37 +44,58 @@ function migrateV1(o) {
     type: e.type, text: e.text || "", height: e.height || null }));
   return s;
 }
-function normalize(o) {
+// Turns any saved or exported format into a v3 db.
+function toDb(o) {
   if (!o || typeof o !== "object") throw new Error("bad");
-  if (o.v === 2) return Object.assign(blank(), o);
-  if (o.sowDate && o.plants) return migrateV1(o);
+  if (o.v === 3 && Array.isArray(o.gardens)) {
+    const d = Object.assign(blankDb(), o);
+    d.dismissed = d.dismissed || {};
+    d.gardens = d.gardens.filter(g => g && typeof g === "object").map(g => Object.assign(blankGarden(), g));
+    if (!d.gardens.some(g => g.id === d.active)) d.active = d.gardens[0] ? d.gardens[0].id : null;
+    return d;
+  }
+  if (o.v === 2) {
+    const d = blankDb(), g = gardenFromV2(o);
+    d.units = o.units || d.units; d.dismissed = o.dismissed || {};
+    if (g.device) { d.gardens = [g]; d.active = g.id; }
+    return d;
+  }
+  if (o.sowDate && o.plants) {
+    const d = blankDb(), g = migrateV1(o);
+    d.units = "F"; d.gardens = [g]; d.active = g.id;
+    return d;
+  }
   throw new Error("bad");
 }
-let state = blank();
+let db = blankDb();
 try {
   const raw = localStorage.getItem(KEY);
-  if (raw) state = normalize(JSON.parse(raw));
+  if (raw) db = toDb(JSON.parse(raw));
   else {
-    const legacy = localStorage.getItem(LEGACY_KEY);
-    if (legacy) { state = migrateV1(JSON.parse(legacy)); localStorage.setItem(KEY, JSON.stringify(state)); }
+    const older = localStorage.getItem(V2_KEY) || localStorage.getItem(LEGACY_KEY);
+    if (older) { db = toDb(JSON.parse(older)); localStorage.setItem(KEY, JSON.stringify(db)); }
   }
-} catch (e) { state = blank(); }
+} catch (e) { db = blankDb(); }
+const activeGarden = () => db.gardens.find(g => g.id === db.active) || db.gardens[0] || null;
+let state = activeGarden() || blankGarden();
+let addingGarden = false;   // true while setting up a new garden that isn't saved yet
+const gardenName = g => (g && g.name) || (g && g.device ? L.devices[g.device].name : "New garden");
 
 function save() {
-  state.updated = Date.now();
-  try { localStorage.setItem(KEY, JSON.stringify(state)); }
+  db.updated = Date.now();
+  try { localStorage.setItem(KEY, JSON.stringify(db)); }
   catch (e) { toast("Couldn't save in this browser. Export a backup so you don't lose anything."); }
 }
 
 /* ---------------- units ---------------- */
 const tempTxt = r => {
   if (!r) return "";
-  const conv = c => state.units === "F" ? Math.round(c * 9 / 5 + 32) : c;
-  const u = state.units === "F" ? "°F" : "°C";
+  const conv = c => db.units === "F" ? Math.round(c * 9 / 5 + 32) : c;
+  const u = db.units === "F" ? "°F" : "°C";
   return r[0] === r[1] ? `${conv(r[0])} ${u}` : `${conv(r[0])}–${conv(r[1])} ${u}`;
 };
-const lenTxt = cm => state.units === "F" ? `${Math.round(cm / 2.54)} in` : `${cm} cm`;
-const heightTxt = cm => state.units === "F" ? `${(cm / 2.54).toFixed(1).replace(/\.0$/, "")} in` : `${cm} cm`;
+const lenTxt = cm => db.units === "F" ? `${Math.round(cm / 2.54)} in` : `${cm} cm`;
+const heightTxt = cm => db.units === "F" ? `${(cm / 2.54).toFixed(1).replace(/\.0$/, "")} in` : `${cm} cm`;
 
 /* ---------------- plant logic ---------------- */
 const active = () => state.pots.map((p, i) => p ? Object.assign({ idx: i }, p) : null).filter(Boolean);
@@ -300,7 +332,7 @@ function renderHero() {
   const a = active();
   if (!a.length) { $("daynum").innerHTML = `No pots planted<small>Set up your garden to start tracking.</small>`; $("next").innerHTML = ""; return; }
   const first = a.map(p => p.sown).sort()[0], n = Math.max(0, diff(first, today()));
-  $("daynum").innerHTML = `Day ${n}<small>since your first sowing · ${fmt(first, { weekday: "short", month: "short", day: "numeric" })}</small>`;
+  $("daynum").innerHTML = `${db.gardens.length > 1 ? `<span class="gname">${esc(gardenName(state))}</span>` : ""}Day ${n}<small>since your first sowing · ${fmt(first, { weekday: "short", month: "short", day: "numeric" })}</small>`;
   $("next").innerHTML = a.map(p => {
     const s = seedOf(p), nm = nextMilestone(p);
     if (!nm) return `<p><strong>${esc(s.name)}:</strong> every milestone logged.</p>`;
@@ -388,7 +420,7 @@ function renderLog() {
   const cur = sel.value;
   sel.innerHTML = `<option value="all">All pots</option>` + active().map(p => `<option value="${p.id}">${potName(p)} · ${esc(seedOf(p).name)}</option>`).join("");
   if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
-  $("heightlabel").textContent = state.units === "F" ? "Height (in)" : "Height (cm)";
+  $("heightlabel").textContent = db.units === "F" ? "Height (in)" : "Height (cm)";
   const ul = $("entries"), list = state.log.slice().sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
   if (!list.length) { ul.innerHTML = `<li class="emptyrow">No entries yet. A first note like “seeds in, light on” is worth a line.</li>`; return; }
   ul.innerHTML = list.map(e => {
@@ -409,7 +441,7 @@ function renderHistory() {
   }).join("");
 }
 function renderUnits() {
-  document.querySelectorAll("[data-units]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.units === state.units)));
+  document.querySelectorAll("[data-units]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.units === db.units)));
 }
 /* ---------------- catch-up for gardens that were already growing ---------------- */
 // Pots sown a few days ago with nothing logged get a one-time checklist of the stages that could have happened by now.
@@ -461,7 +493,7 @@ function saveCatchup(skip) {
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const isStandalone = navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
 function renderIosTip() {
-  const box = $("iosTip"), show = isIOS && !isStandalone && !(state.dismissed || {}).iosTip;
+  const box = $("iosTip"), show = isIOS && !isStandalone && !(db.dismissed || {}).iosTip;
   box.classList.toggle("hidden", !show);
   if (!show) return;
   box.innerHTML = `<h3 id="iostiph">On iPhone or iPad? Keep your garden safe</h3>
@@ -495,6 +527,7 @@ function go(v, replace) {
 }
 window.addEventListener("popstate", () => {
   view = viewFromPath();
+  if (view !== "setup" && addingGarden) { addingGarden = false; state = activeGarden() || blankGarden(); view = state.device ? "garden" : "home"; }
   if (view === "setup" && !draft) initDraft();
   if (view === "setup") renderSetup();
   render();
@@ -506,6 +539,7 @@ function render() {
   $("setup").classList.toggle("hidden", view !== "setup");
   $("app").classList.toggle("hidden", !garden);
   $("editBtn").classList.toggle("hidden", !garden);
+  renderSwitcher(garden && db.gardens.length > 0);
   $("unitsToggle").classList.toggle("hidden", view === "home");
   renderUnits();
   if (view === "home") { $("standaloneNote").classList.toggle("hidden", !isStandalone); drawUnit("introUnit", samplePots(), 4); return; }
@@ -622,7 +656,7 @@ function seedOptions(sel) {
 }
 let draft = null;
 function initDraft() {
-  draft = { device: state.device || "mini2", potCount: state.potCount || 4,
+  draft = { name: state.name || "", device: state.device || "mini2", potCount: state.potCount || 4,
     pots: Array.from({ length: 6 }, (_, i) => state.pots[i] ? { seed: state.pots[i].seed, sown: state.pots[i].sown } : { seed: "", sown: today() }) };
 }
 function openSetup() {
@@ -631,7 +665,12 @@ function openSetup() {
   go("setup");
 }
 function renderSetup() {
-  $("setupCancel").textContent = state.device ? "Cancel" : "Back";
+  const saved = db.gardens.includes(state) && !!state.device;
+  $("setuph").textContent = addingGarden ? "Add another Auk" : saved ? "Edit garden" : "Set up your garden";
+  $("setupCancel").textContent = saved || addingGarden ? "Cancel" : "Back";
+  $("deleteWrap").classList.toggle("hidden", !saved);
+  $("gardenName").value = draft.name;
+  $("gardenName").placeholder = "e.g. Kitchen " + L.devices[draft.device].name.replace(/^Auk /, "");
   const dev = L.devices[draft.device];
   if (!dev.potOptions.some(o => o.count === draft.potCount)) draft.potCount = dev.potOptions[0].count;
   $("devices").innerHTML = Object.entries(L.devices).map(([id, d]) =>
@@ -655,7 +694,7 @@ function renderSetup() {
   }).join("");
 }
 function saveSetup() {
-  const t = today(), first = !state.device;
+  const t = today(), first = !db.gardens.some(g => g.device);
   const next = [];
   for (let i = 0; i < Math.max(draft.potCount, state.pots.length); i++) {
     const old = state.pots[i], d = i < draft.potCount ? draft.pots[i] : { seed: "" };
@@ -665,10 +704,47 @@ function saveSetup() {
     next[i] = !d.seed ? null : same ? old : { id: uid(), seed: d.seed, sown: d.sown || t, ms: {} };
   }
   state.device = draft.device; state.potCount = draft.potCount; state.pots = next;
+  state.name = draft.name.trim();
+  const added = !db.gardens.includes(state);
+  if (added) db.gardens.push(state);
+  db.active = state.id; addingGarden = false;
   save();
   // A brand-new garden gets its own address (/welcome) so Vercel Analytics can count gardens created.
   go(first ? "welcome" : "garden");
   if (first) toast(isIOS && !isStandalone ? "Your garden is set up." : "Your garden is set up. Bookmark this page to check in.");
+  else if (added) toast(`${gardenName(state)} added.`);
+}
+
+/* ---------------- several gardens ---------------- */
+function switchGarden(id) {
+  if (!db.gardens.some(g => g.id === id)) return;
+  db.active = id; state = activeGarden(); save(); go("garden");
+}
+function addGarden() {
+  addingGarden = true;
+  state = blankGarden();
+  openSetup();
+}
+function leaveSetup() {
+  if (addingGarden) { addingGarden = false; state = activeGarden() || blankGarden(); }
+  go(state.device ? "garden" : "home");
+}
+function deleteGarden() {
+  const name = gardenName(state);
+  if (!confirm(`Delete "${name}"? Its pots, timeline and log will be removed from this browser. Export a backup first if you might want it back.`)) return;
+  db.gardens = db.gardens.filter(g => g !== state);
+  db.active = db.gardens[0] ? db.gardens[0].id : null;
+  state = activeGarden() || blankGarden();
+  save();
+  go(state.device ? "garden" : "home");
+  toast(`${name} deleted.`);
+}
+function renderSwitcher(show) {
+  const sel = $("gardenSwitch");
+  sel.classList.toggle("hidden", !show);
+  if (!show) return;
+  sel.innerHTML = db.gardens.map(g => `<option value="${g.id}" ${g === state ? "selected" : ""}>${esc(gardenName(g))}</option>`).join("") +
+    `<option value="__add">+ Add another Auk</option>`;
 }
 
 /* ---------------- events ---------------- */
@@ -688,9 +764,9 @@ document.addEventListener("click", ev => {
   else if (b.dataset.quick) addLog({ date: today(), pot: "all", type: b.dataset.quick, text: doseText(b.dataset.quick), height: null });
   else if (b.dataset.comboclear !== undefined) pickSeed(+b.dataset.comboclear, "");
   else if (b.dataset.edit || b.dataset.start) openSetup();
-  else if (b.dataset.home) go(state.device ? "garden" : "home");
+  else if (b.dataset.home) { if (addingGarden) leaveSetup(); else go(state.device ? "garden" : "home"); }
   else if (b.dataset.exporttip) exportData();
-  else if (b.dataset.dismiss) { state.dismissed = state.dismissed || {}; state.dismissed[b.dataset.dismiss] = 1; save(); render(); }
+  else if (b.dataset.dismiss) { db.dismissed = db.dismissed || {}; db.dismissed[b.dataset.dismiss] = 1; save(); render(); }
   else if (b.dataset.cusave) saveCatchup(false);
   else if (b.dataset.cuskip) saveCatchup(true);
   else if (b.dataset.cudates) {
@@ -700,14 +776,16 @@ document.addEventListener("click", ev => {
     ticked.forEach(t => { const [id, k] = t.split(":"); const c = document.querySelector(`input[data-cu="${id}"][data-k="${k}"]`); if (c) c.checked = true; });
     Object.entries(dates).forEach(([key, v]) => { const i = document.querySelector(`input[data-cud="${key}"]`); if (i) i.value = v; });
   }
-  else if (b.dataset.units) { state.units = b.dataset.units; save(); if (state.device) render(); else renderUnits(); }
+  else if (b.dataset.units) { db.units = b.dataset.units; save(); if (state.device) render(); else renderUnits(); }
   else if (b.id === "setupSave") saveSetup();
-  else if (b.id === "setupCancel") go(state.device ? "garden" : "home");
+  else if (b.id === "setupCancel") leaveSetup();
+  else if (b.id === "deleteGarden") deleteGarden();
   else if (b.id === "exportBtn") exportData();
 });
 document.addEventListener("change", ev => {
   const t = ev.target;
-  if (t.name === "device") { draft.device = t.value; renderSetup(); }
+  if (t.id === "gardenSwitch") { if (t.value === "__add") addGarden(); else switchGarden(t.value); }
+  else if (t.name === "device") { draft.device = t.value; renderSetup(); }
   else if (t.id === "potcount") { draft.potCount = Number(t.value); renderSetup(); }
   else if (t.dataset.f) { draft.pots[+t.dataset.i][t.dataset.f] = t.value; if (t.dataset.f === "seed") renderSetup(); }
   else if (t.dataset.k && t.dataset.pot && t.type === "date" && t.value) { potById(t.dataset.pot).ms[t.dataset.k] = t.value; save(); render(); }
@@ -729,7 +807,7 @@ form.addEventListener("submit", ev => {
   let text = (f.get("text") || "").trim();
   if (!text && (type === "refill" || type === "topup")) text = doseText(type);
   const hv = f.get("height");
-  const cm = hv ? (state.units === "F" ? Math.round(Number(hv) * 2.54 * 10) / 10 : Number(hv)) : null;
+  const cm = hv ? (db.units === "F" ? Math.round(Number(hv) * 2.54 * 10) / 10 : Number(hv)) : null;
   addLog({ date: f.get("date") || today(), pot: f.get("pot"), type, text, height: cm });
   form.text.value = ""; form.height.value = ""; form.date.value = today();
 });
@@ -737,18 +815,37 @@ form.addEventListener("submit", ev => {
 /* ---------------- backup ---------------- */
 function exportData() {
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }));
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(db, null, 2)], { type: "application/json" }));
   a.download = `sprout-log-${today()}.json`;
   document.body.appendChild(a); a.click(); a.remove();
 }
 $("importFile").addEventListener("change", async ev => {
   const f = ev.target.files[0]; if (!f) return;
-  try { state = normalize(JSON.parse(await f.text())); save(); go("garden"); toast("Backup imported."); }
-  catch (e) { toast("That file isn't a Sprout Log backup."); }
+  let incoming;
+  try { incoming = toDb(JSON.parse(await f.text())); }
+  catch (e) { toast("That file isn't a Sprout Log backup."); ev.target.value = ""; return; }
+  ev.target.value = "";
+  if (!incoming.gardens.length) { toast("That backup doesn't have a garden in it."); return; }
+  const have = db.gardens.filter(g => g.device).length;
+  let msg = "Backup imported.";
+  if (!have) { db = incoming; }
+  else if (incoming.gardens.length === 1) {
+    // A one-garden backup is added alongside what's here, so nothing is lost.
+    const g = incoming.gardens[0];
+    if (db.gardens.some(x => x.id === g.id)) g.id = uid();
+    db.gardens.push(g); db.active = g.id; msg = `${gardenName(g)} added from your backup.`;
+  } else {
+    if (!confirm(`This backup has ${incoming.gardens.length} gardens. Replace the ${have} garden${have > 1 ? "s" : ""} in this browser with them?`)) return;
+    db = incoming;
+  }
+  addingGarden = false;
+  state = activeGarden() || blankGarden();
+  save(); go("garden"); toast(msg);
   ev.target.value = "";
 });
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 3500); }
 
+$("gardenName").addEventListener("input", ev => { if (draft) draft.name = ev.target.value; });
 $("libdate").textContent = fmt(L.checked, { month: "long", day: "numeric", year: "numeric" });
 view = viewFromPath();
 if (view === "setup") { initDraft(); renderSetup(); }
