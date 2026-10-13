@@ -211,21 +211,28 @@ function drawPlant(p, cx, soilY, scale) {
   }
   return wrap(g);
 }
-function drawUnit(target, pots, potCount) {
-  const n = Math.max(1, potCount), soilY = 248;
-  const span = 400, spacing = span / n, rx = Math.min(62, spacing * 0.4);
-  const scale = Math.max(0.6, Math.min(1, spacing / 150));
+// Pot sizes for a model + layout. A Big Plant Pot takes the space of two standard pots.
+function potSizes(device, count) {
+  const dev = L.devices[device], opt = dev && dev.potOptions.find(o => o.count === count);
+  return (opt && opt.sizes) || Array.from({ length: count }, () => "std");
+}
+const isBigPot = (g, i) => potSizes(g.device, g.potCount)[i] === "big";
+function drawUnit(target, pots, potCount, sizes) {
+  const n = Math.max(1, potCount), soilY = 248, span = 400;
+  sizes = sizes || Array.from({ length: n }, () => "std");
+  const weights = sizes.map(z => z === "big" ? 2 : 1), total = weights.reduce((a, b) => a + b, 0);
   let s = `<defs><linearGradient id="beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--glow)" stop-opacity=".5"/><stop offset="1" stop-color="var(--glow)" stop-opacity="0"/></linearGradient></defs>`;
   s += `<polygon class="glowbeam" points="70,58 490,58 500,262 60,262" fill="url(#beam)"/>`;
   s += `<rect x="44" y="26" width="16" height="250" rx="5" fill="var(--wood)"/><rect x="500" y="26" width="16" height="250" rx="5" fill="var(--wood)"/>`;
   s += `<rect x="36" y="36" width="488" height="22" rx="11" fill="var(--ink)"/><rect x="70" y="54" width="420" height="4" rx="2" fill="var(--glow)"/>`;
-  const centers = [];
-  for (let i = 0; i < n; i++) centers.push(80 + spacing * (i + .5));
-  centers.forEach((cx, i) => { const p = pots[i]; if (p) s += drawPlant(Object.assign({ idx: i }, p), cx, soilY, scale); });
+  const centers = [], slots = [];
+  let x = 80;
+  weights.forEach(w => { const slot = span * w / total; slots.push(slot); centers.push(x + slot / 2); x += slot; });
+  centers.forEach((cx, i) => { const p = pots[i]; if (p) s += drawPlant(Object.assign({ idx: i }, p), cx, soilY, Math.max(0.6, Math.min(1, slots[i] / 150))); });
   s += `<rect x="24" y="252" width="512" height="44" rx="14" fill="var(--wood)"/>`;
   centers.forEach((cx, i) => {
     const p = pots[i];
-    s += `<ellipse cx="${cx}" cy="253" rx="${rx}" ry="11" fill="${p ? "var(--soil)" : "var(--soil-empty)"}"/>`;
+    s += `<ellipse cx="${cx}" cy="253" rx="${Math.min(62, slots[i] * 0.4)}" ry="11" fill="${p ? "var(--soil)" : "var(--soil-empty)"}"/>`;
     const label = p ? seedOf(p).name.split(" (")[0] : "Empty";
     const short = n > 3 && label.length > 20 ? label.slice(0, 19) + "…" : label;
     const ly = n > 3 ? 314 + (i % 2) * 17 : 318;
@@ -345,7 +352,7 @@ function renderPots() {
   const el = $("pots");
   el.style.setProperty("--cols", Math.min(state.potCount || 1, 2));
   el.innerHTML = state.pots.slice(0, state.potCount).map((raw, i) => {
-    if (!raw) return `<article class="pot empty"><header><h3>Pot ${i + 1}</h3></header><p class="muted">Empty.</p><button class="btn sm" data-edit="1">Plant something</button></article>`;
+    if (!raw) return `<article class="pot empty"><header><h3>Pot ${i + 1}${isBigPot(state, i) ? " · Big pot" : ""}</h3></header><p class="muted">Empty.</p><button class="btn sm" data-edit="1">Plant something</button></article>`;
     const p = Object.assign({ idx: i }, raw), s = seedOf(p);
     const rows = milestones(s).map(([k, label]) => {
       const done = p.ms[k], w = windowOf(s, k), a1 = addDays(p.sown, w.r[0]), b1 = addDays(p.sown, w.r[1]);
@@ -364,7 +371,7 @@ function renderPots() {
     ].filter(Boolean).join(" · ");
     const tips = [s.seeds && `Sowing: ${s.seeds}.`, `Harvest: ${s.harvestHow}`].concat(s.tips || []).filter(Boolean);
     return `<article class="pot" style="--c:${s.fruit || "var(--leaf-2)"}">
-      <header><div><p class="eyebrow">Pot ${i + 1}</p><h3>${esc(s.name)}</h3>${s.variety ? `<p class="small muted">${esc(s.variety)}</p>` : ""}</div><span class="stage">${stageName(p)}</span></header>
+      <header><div><p class="eyebrow">Pot ${i + 1}${isBigPot(state, i) ? " · Big pot" : ""}</p><h3>${esc(s.name)}</h3>${s.variety ? `<p class="small muted">${esc(s.variety)}</p>` : ""}</div><span class="stage">${stageName(p)}</span></header>
       <p class="small muted">${facts}</p>
       <ul class="ms">${rows}</ul>
       <details class="tips"><summary>Growing notes</summary><ul>${tips.map(t => `<li>${esc(t)}</li>`).join("")}</ul><p class="src">Sources: ${srcLinks(s.sources)}</p></details>
@@ -544,7 +551,7 @@ function render() {
   renderUnits();
   if (view === "home") { $("standaloneNote").classList.toggle("hidden", !isStandalone); drawUnit("introUnit", samplePots(), 4); return; }
   if (view === "setup") return;
-  drawUnit("unit", state.pots, state.potCount); renderIosTip(); renderCatchup(); renderHero(); renderPots(); renderTasks(); renderDevice(); renderUpcoming(); renderLog(); renderHistory(); renderUnits();
+  drawUnit("unit", state.pots, state.potCount, potSizes(state.device, state.potCount)); renderIosTip(); renderCatchup(); renderHero(); renderPots(); renderTasks(); renderDevice(); renderUpcoming(); renderLog(); renderHistory(); renderUnits();
 }
 
 /* ---------------- setup ---------------- */
@@ -680,7 +687,8 @@ function renderSetup() {
   $("potrows").innerHTML = Array.from({ length: draft.potCount }, (_, i) => {
     const p = draft.pots[i], s = SEEDS[p.seed];
     const hint = s ? `${s.sow === "surface" ? "Leave seeds on the surface. " : ""}${s.seeds}. Planted earlier? Change the sow date.` : "";
-    return `<div class="potrow"><span class="potnum">Pot ${i + 1}</span>
+    const big = potSizes(draft.device, draft.potCount)[i] === "big";
+    return `<div class="potrow"><span class="potnum">Pot ${i + 1}${big ? `<span class="small muted"> · Big</span>` : ""}</span>
       <div class="grow field"><label for="combo-${i}">Seed</label>
         <div class="combo">
           <input type="text" id="combo-${i}" data-combo="${i}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="combo-list-${i}"
