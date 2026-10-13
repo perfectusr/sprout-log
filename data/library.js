@@ -51,9 +51,11 @@ window.SPROUT_LIBRARY = {
   devices: {
     mini2: {
       name: "Auk Mini 2",
+      // sizes: "std" = standard pot, "big" = Big Plant Pot (takes the space of two standard pots)
       potOptions: [
-        { count: 4, label: "4 standard pots" },
-        { count: 2, label: "2 Big Plant Pots (Chili & Tomato Kit)" }
+        { count: 4, label: "4 standard pots", sizes: ["std", "std", "std", "std"] },
+        { count: 3, label: "1 Big Plant Pot + 2 standard pots", sizes: ["big", "std", "std"] },
+        { count: 2, label: "2 Big Plant Pots (Chili & Tomato Kit)", sizes: ["big", "big"] }
       ],
       lightCm: 15,
       sources: ["mini2Setup", "mini2Light", "mini2Nutr", "mini2Fruit", "mini2Mixed"]
