@@ -53,6 +53,10 @@ npx serve .
 
 Sprout Log reads the original tracker's data automatically if it's in the same browser. Otherwise, use **Export backup** on the old page and **Import backup** here. Older backups are converted on import.
 
+## Contact
+
+Suggestions, corrections or questions: [josh@literallysa.me](mailto:josh@literallysa.me?subject=Sprout%20Log)
+
 ## Disclaimer
 
 Sprout Log is an independent project. It isn't made, endorsed or supported by Auk. "Auk" and its product names belong to their owner and are used only to describe compatibility. Plants vary with temperature and light, so treat the dates as a guide.
