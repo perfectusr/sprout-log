@@ -1,6 +1,6 @@
 :root{
   --bg:#E6ECE3; --panel:#F3F6F0; --ink:#1D3528; --ink-2:#4B6355; --line:#C7D3C4;
-  --glow:#C4167B; --glow-soft:rgba(196,22,123,.13);
+  --glow:#C4167B; --glow-soft:rgba(196,22,123,.13); --light:#FFF1D2;
   --wood:#C49A6C; --seed:#9C7449; --soil:#6B4A33; --soil-empty:#B9A58F;
   --leaf:#3F8A3A; --leaf-2:#2D6B2E;
   box-sizing:border-box;
