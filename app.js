@@ -25,7 +25,7 @@ const weekKey = () => Math.floor(parse(today()).getTime() / (7 * DAY));
 // db = everything saved in this browser; state = the garden currently on screen.
 const defaultUnits = () => (navigator.language || "").toLowerCase() === "en-us" ? "F" : "C";
 function blankGarden() {
-  return { id: uid(), name: "", device: null, potCount: 0, pots: [], log: [], history: [], checks: {}, caughtUp: {} };
+  return { id: uid(), name: "", device: null, potCount: 0, colorway: "", pots: [], log: [], history: [], checks: {}, caughtUp: {} };
 }
 function blankDb() { return { v: 3, units: defaultUnits(), dismissed: {}, gardens: [], active: null, updated: 0 }; }
 const GARDEN_FIELDS = ["device", "potCount", "pots", "log", "history", "checks", "caughtUp"];
@@ -217,7 +217,17 @@ function potSizes(device, count) {
   return (opt && opt.sizes) || Array.from({ length: count }, () => "std");
 }
 const isBigPot = (g, i) => potSizes(g.device, g.potCount)[i] === "big";
-function drawUnit(target, pots, potCount, sizes) {
+// The garden's colorway, or null for the default drawing.
+function colorwayOf(device, cid) {
+  const dev = L.devices[device];
+  return (dev && dev.colorways && dev.colorways.find(c => c.id === cid)) || null;
+}
+function drawUnit(target, pots, potCount, sizes, cw) {
+  // Colors: with a colorway, the light bar, tray and pots take its main color and the base
+  // and posts its wood (on the Auk 1 the base is white too). Without one, the original look.
+  const wood = cw ? cw.wood : "var(--wood)", bar = cw ? cw.shell : "var(--ink)";
+  const base = cw ? (cw.base === "shell" ? cw.shell : cw.wood) : "var(--wood)";
+  const edge = `stroke="var(--line)" stroke-width="1.5"`;
   const n = Math.max(1, potCount), soilY = 248, span = 400;
   sizes = sizes || Array.from({ length: n }, () => "std");
   const weights = sizes.map(z => z === "big" ? 2 : 1), total = weights.reduce((a, b) => a + b, 0);
@@ -230,16 +240,20 @@ function drawUnit(target, pots, potCount, sizes) {
     `<radialGradient id="pool-${id}" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="var(--light)" stop-opacity=".5"/><stop offset="1" stop-color="var(--light)" stop-opacity="0"/></radialGradient>` +
     `<filter id="halo-${id}" x="-20%" y="-300%" width="140%" height="700%"><feGaussianBlur stdDeviation="5"/></filter></defs>`;
   s += `<polygon class="glowbeam" points="70,58 490,58 500,262 60,262" fill="url(#beam-${id})"/>`;
-  s += `<rect x="44" y="26" width="16" height="250" rx="5" fill="var(--wood)"/><rect x="500" y="26" width="16" height="250" rx="5" fill="var(--wood)"/>`;
-  s += `<rect x="36" y="36" width="488" height="22" rx="11" fill="var(--ink)"/><rect class="glowhalo" x="70" y="51" width="420" height="10" rx="5" fill="var(--light)" filter="url(#halo-${id})"/><rect x="70" y="54" width="420" height="4" rx="2" fill="var(--light)"/>`;
+  s += `<rect x="44" y="26" width="16" height="250" rx="5" fill="${wood}"/><rect x="500" y="26" width="16" height="250" rx="5" fill="${wood}"/>`;
+  s += `<rect x="36" y="36" width="488" height="22" rx="11" fill="${bar}" ${cw ? edge : ""}/><rect class="glowhalo" x="70" y="51" width="420" height="10" rx="5" fill="var(--light)" filter="url(#halo-${id})"/><rect x="70" y="54" width="420" height="4" rx="2" fill="var(--light)"/>`;
   const centers = [], slots = [];
   let x = 80;
   weights.forEach(w => { const slot = span * w / total; slots.push(slot); centers.push(x + slot / 2); x += slot; });
   centers.forEach((cx, i) => { const p = pots[i]; if (p) s += drawPlant(Object.assign({ idx: i }, p), cx, soilY, Math.max(0.6, Math.min(1, slots[i] / 150))); });
-  s += `<rect x="24" y="252" width="512" height="44" rx="14" fill="var(--wood)"/><ellipse class="glowpool" cx="280" cy="254" rx="240" ry="18" fill="url(#pool-${id})"/>`;
+  s += `<rect x="24" y="252" width="512" height="44" rx="14" fill="${base}" ${cw ? edge : ""}/>`;
+  if (cw) s += `<rect x="30" y="244" width="500" height="16" rx="8" fill="${cw.shell}" ${edge}/>`;
+  s += `<ellipse class="glowpool" cx="280" cy="254" rx="240" ry="18" fill="url(#pool-${id})"/>`;
   centers.forEach((cx, i) => {
     const p = pots[i];
-    s += `<ellipse cx="${cx}" cy="253" rx="${Math.min(62, slots[i] * 0.4)}" ry="11" fill="${p ? "var(--soil)" : "var(--soil-empty)"}"/>`;
+    const prx = Math.min(62, slots[i] * 0.4);
+    if (cw) s += `<ellipse cx="${cx}" cy="252" rx="${prx + 5}" ry="14" fill="${cw.shell}" ${edge}/>`;
+    s += `<ellipse cx="${cx}" cy="253" rx="${prx}" ry="11" fill="${p ? "var(--soil)" : "var(--soil-empty)"}"/>`;
     const label = p ? seedOf(p).name.split(" (")[0] : "Empty";
     const short = n > 3 && label.length > 20 ? label.slice(0, 19) + "…" : label;
     const ly = n > 3 ? 314 + (i % 2) * 17 : 318;
@@ -558,7 +572,7 @@ function render() {
   renderUnits();
   if (view === "home") { $("standaloneNote").classList.toggle("hidden", !isStandalone); drawUnit("introUnit", samplePots(), 4); return; }
   if (view === "setup") return;
-  drawUnit("unit", state.pots, state.potCount, potSizes(state.device, state.potCount)); renderIosTip(); renderCatchup(); renderHero(); renderPots(); renderTasks(); renderDevice(); renderUpcoming(); renderLog(); renderHistory(); renderUnits();
+  drawUnit("unit", state.pots, state.potCount, potSizes(state.device, state.potCount), colorwayOf(state.device, state.colorway)); renderIosTip(); renderCatchup(); renderHero(); renderPots(); renderTasks(); renderDevice(); renderUpcoming(); renderLog(); renderHistory(); renderUnits();
 }
 
 /* ---------------- setup ---------------- */
@@ -670,7 +684,7 @@ function seedOptions(sel) {
 }
 let draft = null;
 function initDraft() {
-  draft = { name: state.name || "", device: state.device || "mini2", potCount: state.potCount || 4,
+  draft = { name: state.name || "", device: state.device || "mini2", potCount: state.potCount || 4, colorway: state.colorway || "",
     pots: Array.from({ length: 6 }, (_, i) => state.pots[i] ? { seed: state.pots[i].seed, sown: state.pots[i].sown } : { seed: "", sown: today() }) };
 }
 function openSetup() {
@@ -678,6 +692,13 @@ function openSetup() {
   renderSetup();
   go("setup");
 }
+function potCountText(d) {
+  const c = [...new Set(d.potOptions.map(o => o.count))].sort((a, b) => a - b);
+  return c.length > 1 ? c.slice(0, -1).join(", ") + " or " + c[c.length - 1] : String(c[0]);
+}
+// The colorway preview shows whatever seeds are picked so far.
+const draftPots = () => draft.pots.slice(0, draft.potCount).map((p, i) => p.seed ? { id: "d" + i, seed: p.seed, sown: p.sown || today(), ms: {} } : null);
+function drawPreview() { drawUnit("cwPreview", draftPots(), draft.potCount, potSizes(draft.device, draft.potCount), colorwayOf(draft.device, draft.colorway)); }
 function renderSetup() {
   const saved = db.gardens.includes(state) && !!state.device;
   $("setuph").textContent = addingGarden ? "Add another Auk" : saved ? "Edit garden" : "Set up your garden";
@@ -687,8 +708,16 @@ function renderSetup() {
   $("gardenName").placeholder = "e.g. Kitchen " + L.devices[draft.device].name.replace(/^Auk /, "");
   const dev = L.devices[draft.device];
   if (!dev.potOptions.some(o => o.count === draft.potCount)) draft.potCount = dev.potOptions[0].count;
+  if (!colorwayOf(draft.device, draft.colorway)) draft.colorway = "";
+  const cws = dev.colorways || [];
+  $("colorwrap").innerHTML = cws.length ? `<p class="lab-sm">Colorway <span class="muted">(optional, so the drawing matches yours)</span></p>
+    <div class="cwgrid" role="radiogroup" aria-label="Colorway">${cws.map(c => `<label class="cwopt"><input type="radio" name="colorway" value="${c.id}" ${c.id === draft.colorway ? "checked" : ""}>
+      <span class="sw" style="background:linear-gradient(135deg,${c.shell} 50%,${c.wood} 50%)"></span><span>${esc(c.name)}</span></label>`).join("")}
+      <label class="cwopt"><input type="radio" name="colorway" value="" ${draft.colorway ? "" : "checked"}><span class="sw sw-none"></span><span>Not sure</span></label></div>
+    <svg class="unit cwpreview" id="cwPreview" viewBox="0 0 560 338" aria-hidden="true"></svg>` : "";
+  if (cws.length) drawPreview();
   $("devices").innerHTML = Object.entries(L.devices).map(([id, d]) =>
-    `<label class="devopt"><input type="radio" name="device" value="${id}" ${id === draft.device ? "checked" : ""}><span>${esc(d.name)}</span><small>${d.potOptions.map(o => o.count).join(" or ")} pots</small></label>`).join("");
+    `<label class="devopt"><input type="radio" name="device" value="${id}" ${id === draft.device ? "checked" : ""}><span>${esc(d.name)}</span><small>${potCountText(d)} pots</small></label>`).join("");
   $("potcountwrap").innerHTML = dev.potOptions.length > 1
     ? `<label>Pot setup <select id="potcount">${dev.potOptions.map(o => `<option value="${o.count}" ${o.count === draft.potCount ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select></label>` : `<p class="small muted">${esc(dev.potOptions[0].label)}</p>`;
   $("potrows").innerHTML = Array.from({ length: draft.potCount }, (_, i) => {
@@ -718,7 +747,7 @@ function saveSetup() {
     if (i >= draft.potCount) continue;
     next[i] = !d.seed ? null : same ? old : { id: uid(), seed: d.seed, sown: d.sown || t, ms: {} };
   }
-  state.device = draft.device; state.potCount = draft.potCount; state.pots = next;
+  state.device = draft.device; state.potCount = draft.potCount; state.pots = next; state.colorway = draft.colorway || "";
   state.name = draft.name.trim();
   const added = !db.gardens.includes(state);
   if (added) db.gardens.push(state);
@@ -801,6 +830,7 @@ document.addEventListener("change", ev => {
   const t = ev.target;
   if (t.id === "gardenSwitch") { if (t.value === "__add") addGarden(); else switchGarden(t.value); }
   else if (t.name === "device") { draft.device = t.value; renderSetup(); }
+  else if (t.name === "colorway") { draft.colorway = t.value; drawPreview(); }
   else if (t.id === "potcount") { draft.potCount = Number(t.value); renderSetup(); }
   else if (t.dataset.f) { draft.pots[+t.dataset.i][t.dataset.f] = t.value; if (t.dataset.f === "seed") renderSetup(); }
   else if (t.dataset.k && t.dataset.pot && t.type === "date" && t.value) { potById(t.dataset.pot).ms[t.dataset.k] = t.value; save(); render(); }
