@@ -227,7 +227,8 @@ function drawUnit(target, pots, potCount, sizes, cw) {
   // and posts its wood (on the Auk 1 the base is white too). Without one, the original look.
   const wood = cw ? cw.wood : "var(--wood)", bar = cw ? cw.shell : "var(--ink)";
   const base = cw ? (cw.base === "shell" ? cw.shell : cw.wood) : "var(--wood)";
-  const edge = `stroke="var(--line)" stroke-width="1.5"`;
+  // No outlines: shapes are separated with soft shading instead.
+  const shade = "rgba(0,0,0,.14)", hi = "rgba(255,255,255,.28)";
   const n = Math.max(1, potCount), soilY = 248, span = 400;
   sizes = sizes || Array.from({ length: n }, () => "std");
   const weights = sizes.map(z => z === "big" ? 2 : 1), total = weights.reduce((a, b) => a + b, 0);
@@ -241,18 +242,22 @@ function drawUnit(target, pots, potCount, sizes, cw) {
     `<filter id="halo-${id}" x="-20%" y="-300%" width="140%" height="700%"><feGaussianBlur stdDeviation="5"/></filter></defs>`;
   s += `<polygon class="glowbeam" points="70,58 490,58 500,262 60,262" fill="url(#beam-${id})"/>`;
   s += `<rect x="44" y="26" width="16" height="250" rx="5" fill="${wood}"/><rect x="500" y="26" width="16" height="250" rx="5" fill="${wood}"/>`;
-  s += `<rect x="36" y="36" width="488" height="22" rx="11" fill="${bar}" ${cw ? edge : ""}/><rect class="glowhalo" x="70" y="51" width="420" height="10" rx="5" fill="var(--light)" filter="url(#halo-${id})"/><rect x="70" y="54" width="420" height="4" rx="2" fill="var(--light)"/>`;
+  s += `<rect x="36" y="36" width="488" height="22" rx="11" fill="${bar}"/>${cw ? `<rect x="46" y="54" width="468" height="4" rx="2" fill="${shade}"/>` : ""}<rect class="glowhalo" x="70" y="51" width="420" height="10" rx="5" fill="var(--light)" filter="url(#halo-${id})"/><rect x="70" y="54" width="420" height="4" rx="2" fill="var(--light)"/>`;
   const centers = [], slots = [];
   let x = 80;
   weights.forEach(w => { const slot = span * w / total; slots.push(slot); centers.push(x + slot / 2); x += slot; });
   centers.forEach((cx, i) => { const p = pots[i]; if (p) s += drawPlant(Object.assign({ idx: i }, p), cx, soilY, Math.max(0.6, Math.min(1, slots[i] / 150))); });
-  s += `<rect x="24" y="252" width="512" height="44" rx="14" fill="${base}" ${cw ? edge : ""}/>`;
-  if (cw) s += `<rect x="30" y="244" width="500" height="16" rx="8" fill="${cw.shell}" ${edge}/>`;
+  if (cw) s += `<ellipse cx="280" cy="297" rx="252" ry="7" fill="rgba(0,0,0,.10)"/>`;
+  s += `<rect x="24" y="252" width="512" height="44" rx="14" fill="${base}"/>`;
+  if (cw) s += `<rect x="30" y="244" width="500" height="16" rx="8" fill="${cw.shell}"/>` +
+    `<rect x="38" y="257" width="484" height="3" rx="1.5" fill="${shade}"/>` +
+    `<rect x="40" y="245.5" width="480" height="2" rx="1" fill="${hi}"/>`;
   s += `<ellipse class="glowpool" cx="280" cy="254" rx="240" ry="18" fill="url(#pool-${id})"/>`;
   centers.forEach((cx, i) => {
     const p = pots[i];
     const prx = Math.min(62, slots[i] * 0.4);
-    if (cw) s += `<ellipse cx="${cx}" cy="252" rx="${prx + 5}" ry="14" fill="${cw.shell}" ${edge}/>`;
+    if (cw) s += `<ellipse cx="${cx}" cy="252" rx="${prx + 5}" ry="14" fill="${cw.shell}"/>` +
+      `<ellipse cx="${cx}" cy="252.5" rx="${prx + 1.5}" ry="11.8" fill="${shade}"/>`;
     s += `<ellipse cx="${cx}" cy="253" rx="${prx}" ry="11" fill="${p ? "var(--soil)" : "var(--soil-empty)"}"/>`;
     const label = p ? seedOf(p).name.split(" (")[0] : "Empty";
     const short = n > 3 && label.length > 20 ? label.slice(0, 19) + "…" : label;
