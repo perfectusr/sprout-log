@@ -221,16 +221,17 @@ function drawUnit(target, pots, potCount, sizes) {
   const n = Math.max(1, potCount), soilY = 248, span = 400;
   sizes = sizes || Array.from({ length: n }, () => "std");
   const weights = sizes.map(z => z === "big" ? 2 : 1), total = weights.reduce((a, b) => a + b, 0);
-  // The grow light: a softly breathing beam and a glow around the light bar and on the base.
+  // The grow light (warm white, like the real Auk light): a softly breathing beam and a glow
+  // around the light bar and on the base.
   // Animated in styles.css; still if the visitor has reduced motion on.
   // IDs carry the target so two drawings on a page don't clash.
   const id = target;
-  let s = `<defs><linearGradient id="beam-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--glow)" stop-opacity=".5"/><stop offset="1" stop-color="var(--glow)" stop-opacity="0"/></linearGradient>` +
-    `<radialGradient id="pool-${id}" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="var(--glow)" stop-opacity=".5"/><stop offset="1" stop-color="var(--glow)" stop-opacity="0"/></radialGradient>` +
+  let s = `<defs><linearGradient id="beam-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--light)" stop-opacity=".95"/><stop offset="1" stop-color="var(--light)" stop-opacity="0"/></linearGradient>` +
+    `<radialGradient id="pool-${id}" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="var(--light)" stop-opacity=".5"/><stop offset="1" stop-color="var(--light)" stop-opacity="0"/></radialGradient>` +
     `<filter id="halo-${id}" x="-20%" y="-300%" width="140%" height="700%"><feGaussianBlur stdDeviation="5"/></filter></defs>`;
   s += `<polygon class="glowbeam" points="70,58 490,58 500,262 60,262" fill="url(#beam-${id})"/>`;
   s += `<rect x="44" y="26" width="16" height="250" rx="5" fill="var(--wood)"/><rect x="500" y="26" width="16" height="250" rx="5" fill="var(--wood)"/>`;
-  s += `<rect x="36" y="36" width="488" height="22" rx="11" fill="var(--ink)"/><rect class="glowhalo" x="70" y="51" width="420" height="10" rx="5" fill="var(--glow)" filter="url(#halo-${id})"/><rect x="70" y="54" width="420" height="4" rx="2" fill="var(--glow)"/>`;
+  s += `<rect x="36" y="36" width="488" height="22" rx="11" fill="var(--ink)"/><rect class="glowhalo" x="70" y="51" width="420" height="10" rx="5" fill="var(--light)" filter="url(#halo-${id})"/><rect x="70" y="54" width="420" height="4" rx="2" fill="var(--light)"/>`;
   const centers = [], slots = [];
   let x = 80;
   weights.forEach(w => { const slot = span * w / total; slots.push(slot); centers.push(x + slot / 2); x += slot; });
