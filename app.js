@@ -221,15 +221,24 @@ function drawUnit(target, pots, potCount, sizes) {
   const n = Math.max(1, potCount), soilY = 248, span = 400;
   sizes = sizes || Array.from({ length: n }, () => "std");
   const weights = sizes.map(z => z === "big" ? 2 : 1), total = weights.reduce((a, b) => a + b, 0);
-  let s = `<defs><linearGradient id="beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--glow)" stop-opacity=".5"/><stop offset="1" stop-color="var(--glow)" stop-opacity="0"/></linearGradient></defs>`;
-  s += `<polygon class="glowbeam" points="70,58 490,58 500,262 60,262" fill="url(#beam)"/>`;
+  // The grow light: a softly breathing beam, a glow around the light bar and on the base,
+  // and a faint sheen that drifts across now and then. Animated in styles.css; still if the
+  // visitor has reduced motion on. IDs carry the target so two drawings on a page don't clash.
+  const id = target;
+  let s = `<defs><linearGradient id="beam-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--glow)" stop-opacity=".5"/><stop offset="1" stop-color="var(--glow)" stop-opacity="0"/></linearGradient>` +
+    `<linearGradient id="sheen-${id}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>` +
+    `<radialGradient id="pool-${id}" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="var(--glow)" stop-opacity=".5"/><stop offset="1" stop-color="var(--glow)" stop-opacity="0"/></radialGradient>` +
+    `<clipPath id="clip-${id}"><polygon points="70,58 490,58 500,262 60,262"/></clipPath>` +
+    `<filter id="halo-${id}" x="-20%" y="-300%" width="140%" height="700%"><feGaussianBlur stdDeviation="5"/></filter></defs>`;
+  s += `<polygon class="glowbeam" points="70,58 490,58 500,262 60,262" fill="url(#beam-${id})"/>`;
+  s += `<g clip-path="url(#clip-${id})"><g transform="skewX(-14)"><rect class="glowsheen" x="0" y="58" width="90" height="204" fill="url(#sheen-${id})"/></g></g>`;
   s += `<rect x="44" y="26" width="16" height="250" rx="5" fill="var(--wood)"/><rect x="500" y="26" width="16" height="250" rx="5" fill="var(--wood)"/>`;
-  s += `<rect x="36" y="36" width="488" height="22" rx="11" fill="var(--ink)"/><rect x="70" y="54" width="420" height="4" rx="2" fill="var(--glow)"/>`;
+  s += `<rect x="36" y="36" width="488" height="22" rx="11" fill="var(--ink)"/><rect class="glowhalo" x="70" y="51" width="420" height="10" rx="5" fill="var(--glow)" filter="url(#halo-${id})"/><rect x="70" y="54" width="420" height="4" rx="2" fill="var(--glow)"/>`;
   const centers = [], slots = [];
   let x = 80;
   weights.forEach(w => { const slot = span * w / total; slots.push(slot); centers.push(x + slot / 2); x += slot; });
   centers.forEach((cx, i) => { const p = pots[i]; if (p) s += drawPlant(Object.assign({ idx: i }, p), cx, soilY, Math.max(0.6, Math.min(1, slots[i] / 150))); });
-  s += `<rect x="24" y="252" width="512" height="44" rx="14" fill="var(--wood)"/>`;
+  s += `<rect x="24" y="252" width="512" height="44" rx="14" fill="var(--wood)"/><ellipse class="glowpool" cx="280" cy="254" rx="240" ry="18" fill="url(#pool-${id})"/>`;
   centers.forEach((cx, i) => {
     const p = pots[i];
     s += `<ellipse cx="${cx}" cy="253" rx="${Math.min(62, slots[i] * 0.4)}" ry="11" fill="${p ? "var(--soil)" : "var(--soil-empty)"}"/>`;
