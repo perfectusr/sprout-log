@@ -58,18 +58,39 @@ window.SPROUT_LIBRARY = {
         { count: 3, label: "1 Big Plant Pot + 2 standard pots", sizes: ["big", "std", "std"] }
       ],
       lightCm: 15,
+      // Colorways as sold on auk.com. shell = light bar, tray and pots; wood = base and posts.
+      colorways: [
+        { id: "cream-oak", name: "Cream / Oak", shell: "#ECE5D8", wood: "#C99D6A" },
+        { id: "espresso-oak", name: "Espresso / Oak", shell: "#2F2724", wood: "#C99D6A" },
+        { id: "espresso-walnut", name: "Espresso / Walnut", shell: "#2F2724", wood: "#8A5A3B" },
+        { id: "sage-ash", name: "Sage / Ash", shell: "#ABB683", wood: "#E2C79C" },
+        { id: "terracotta-beech", name: "Terracotta / Beech", shell: "#C8724B", wood: "#DDB07C" }
+      ],
       sources: ["mini2Setup", "mini2Light", "mini2Nutr", "mini2Fruit", "mini2Mixed"]
     },
     mini1: {
       name: "Auk Mini 1",
       potOptions: [{ count: 4, label: "4 pots" }],
       lightCm: 10,
+      colorways: [
+        { id: "white-cork", name: "White / Cork", shell: "#F1EFEA", wood: "#C99A72" },
+        { id: "white-oak", name: "White / Oak", shell: "#F1EFEA", wood: "#C99566" },
+        { id: "white-walnut", name: "White / Walnut", shell: "#F1EFEA", wood: "#7A5A45" },
+        { id: "black-cork", name: "Black / Cork", shell: "#34373A", wood: "#C99A72" },
+        { id: "black-oak", name: "Black / Oak", shell: "#34373A", wood: "#C99566" },
+        { id: "black-walnut", name: "Black / Walnut", shell: "#34373A", wood: "#7A5A45" }
+      ],
       sources: ["mini1Setup", "mini1Light", "mini1Nutr", "mini1Fruit"]
     },
     auk1: {
       name: "Auk 1",
       potOptions: [{ count: 6, label: "6 pots" }],
       lightCm: 10,
+      // Auk 1 is white all over; only the posts are wood.
+      colorways: [
+        { id: "white-pine", name: "White / Pine", shell: "#F2F1EC", wood: "#D9B98A", base: "shell" },
+        { id: "white-walnut", name: "White / Walnut", shell: "#F2F1EC", wood: "#6E4A33", base: "shell" }
+      ],
       sources: ["auk1Setup", "auk1Light", "auk1Nutr", "auk1Mixed"]
     }
   },
