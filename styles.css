@@ -124,6 +124,7 @@ textarea{width:100%;resize:vertical;min-height:70px}
 .potrow .hint{grid-column:2/-1}
 
 /* hero */
+.glowsheen{opacity:0} .glowhalo{opacity:.45} .glowpool{opacity:.55}
 .hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:28px;align-items:center;margin-bottom:36px}
 .unit{width:100%;height:auto;display:block}
 .daynum{font-size:clamp(3.2rem,10vw,6rem);line-height:.9;font-weight:800;letter-spacing:-.04em}
@@ -132,8 +133,12 @@ textarea{width:100%;resize:vertical;min-height:70px}
 .next p+p{margin-top:4px}
 .next:empty{display:none}
 @media (prefers-reduced-motion:no-preference){
-  .glowbeam{animation:breathe 6s ease-in-out infinite}
-  @keyframes breathe{0%,100%{opacity:.75}50%{opacity:1}}
+  .glowbeam{animation:breathe 7s ease-in-out infinite}
+  @keyframes breathe{0%,100%{opacity:.7}50%{opacity:1}}
+  .glowhalo,.glowpool{animation:halo 7s ease-in-out infinite}
+  @keyframes halo{0%,100%{opacity:.35}50%{opacity:.8}}
+  .glowsheen{animation:sheen 12s ease-in-out infinite}
+  @keyframes sheen{0%{transform:translateX(-40px);opacity:0}12%{opacity:.45}70%{transform:translateX(540px);opacity:.45}80%,100%{transform:translateX(580px);opacity:0}}
 }
 
 /* pots */
